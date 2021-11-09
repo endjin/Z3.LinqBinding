@@ -111,5 +111,5 @@ using (var ctx = new Z3Context())
 ```
 
 ## Change Log
-2020/11/09 - Howard van Rooijen (endjin) upgrades the project to .NET `6.0` and Microsoft.Z3 nuget package `4.8.12`
-2015/05/09 - Ricardo Wickel (Microsoft) publishes project using .NET `4.5` and Z3 binaries `4.4.0`
+- 2020/11/09 - Howard van Rooijen (endjin) upgrades the project to `.NET 6.0` and Microsoft.Z3 nuget package `4.8.12`
+- 2015/05/09 - Ricardo Wickel (Microsoft) publishes project using `.NET 4.5` and Z3 binaries `4.4.0`
