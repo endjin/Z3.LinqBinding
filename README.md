@@ -12,7 +12,7 @@ Since 2009 the Z3 Theorem Prover, initial from Microsoft Research, has changed:
 * new API versions with a lot of breaking changes
 * in March 2015 the licence has moved to MIT License and the source code to GitHub: https://github.com/Z3Prover/z3
 
-This version of **Z3.LinqBinding** supports Z3 4.4.0.<br/>
+This version of **Z3.LinqBinding** supports `.NET 6.0` and [Microsoft.Z3](https://www.nuget.org/packages/Microsoft.Z3/) `4.8.12`.<br/>
 Also the sample code of a Sudoku theorem extension has been added: **Z3.LinqBinding.Sudoku**
 
 ## Documentation
@@ -110,5 +110,6 @@ using (var ctx = new Z3Context())
 -------------------------------
 ```
 
-### Blog Posts
-* [May 9 2015 - Z3.LinqBinding released](http://blogs.msdn.com/b/riwickel/archive/2015/05/09/z3-linqbinding-released.aspx)
+## Change Log
+2020/11/09 - Howard van Rooijen (endjin) upgrades the project to .NET `6.0` and Microsoft.Z3 nuget package `4.8.12`
+2015/05/09 - Ricardo Wickel (Microsoft) publishes project using .NET `4.5` and Z3 binaries `4.4.0`
