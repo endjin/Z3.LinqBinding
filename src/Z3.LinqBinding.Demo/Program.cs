@@ -103,6 +103,7 @@ namespace Z3.LinqBindingDemo
                       where t.Cell92 == 4 && t.Cell94 == 9 && t.Cell97 == 2
                       select t);
             }
+            Console.ReadKey();
         }
 
         private static void Print<T>(Theorem<T> t) where T : class
