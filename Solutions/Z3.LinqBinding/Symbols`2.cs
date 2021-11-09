@@ -13,7 +13,9 @@
         /// <remarks>
         /// Used within definition of theorem constraints and to print the theorem prover's result.
         /// </remarks>
+#nullable disable warnings
         public T1 X1 { get; private set; }
+#nullable restore warnings
 
         /// <summary>
         /// Provides access to the second symbol.
@@ -21,6 +23,6 @@
         /// <remarks>
         /// Used within definition of theorem constraints and to print the theorem prover's result.
         /// </remarks>
-        public T2 X2 { get; private set; }
+        public T2 X2 { get; private set; } = default!;
     }
 }

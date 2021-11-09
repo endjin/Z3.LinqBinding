@@ -2,7 +2,7 @@
 {
     using System.Text;
 
-    [TheoremGlobalRewriter(RewriterType = typeof(SudokuTheoremRewriter))]
+    [TheoremGlobalRewriter(typeof(SudokuTheoremRewriter))]
     public class SudokuTable
     {
         public int Cell11 { get; private set; }

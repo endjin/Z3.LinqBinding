@@ -12,8 +12,8 @@
     // But if the record type offers a default ctor, it's happy.
     public record RTheorem<T1, T2>
     {
-        public T1 X { get; init; }
-        public T2 Y { get; init; }
+        public T1 X { get; init; } = default!;
+        public T2 Y { get; init; } = default!;
     }
 
     public static class Program

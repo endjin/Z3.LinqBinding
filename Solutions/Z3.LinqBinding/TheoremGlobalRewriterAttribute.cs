@@ -4,6 +4,11 @@
 
     public class TheoremGlobalRewriterAttribute : Attribute
     {
-        public Type RewriterType { get; set; }
+        public TheoremGlobalRewriterAttribute(Type rewriterType)
+        {
+            this.RewriterType = rewriterType;
+        }
+
+        public Type RewriterType { get; }
     }
 }

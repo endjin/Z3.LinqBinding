@@ -4,6 +4,11 @@
 
     public class TheoremVariableTypeMappingAttribute : Attribute
     {
-        public Type RegularType { get; set; }
+        public TheoremVariableTypeMappingAttribute(Type regularType)
+        {
+            this.RegularType = regularType;
+        }
+
+        public Type RegularType { get; }
     }
 }

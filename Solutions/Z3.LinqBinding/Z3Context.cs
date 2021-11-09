@@ -29,7 +29,7 @@
         /// <summary>
         /// Gets/sets the logger used for diagnostic output.
         /// </summary>
-        public TextWriter Log { get; set; }
+        public TextWriter? Log { get; set; }
 
         /// <summary>
         /// Closes the native resources held by the Z3 theorem prover.

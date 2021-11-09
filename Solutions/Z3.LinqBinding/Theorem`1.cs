@@ -34,7 +34,7 @@
         /// Solves the theorem.
         /// </summary>
         /// <returns>Environment type instance with properties set to theorem-satisfying values.</returns>
-        public T Solve()
+        public T? Solve()
         {
             return base.Solve<T>();
         }

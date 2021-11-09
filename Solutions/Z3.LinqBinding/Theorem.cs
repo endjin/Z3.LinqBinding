@@ -78,7 +78,7 @@
         /// </summary>
         /// <typeparam name="T">Theorem environment type.</typeparam>
         /// <returns>Result of solving the theorem; default(T) if the theorem cannot be satisfied.</returns>
-        protected T Solve<T>()
+        protected T? Solve<T>()
         {
             // TODO: some debugging around issues with proper disposal of native resources…
             // using (Context context = _context.CreateContext())
@@ -127,7 +127,7 @@
                 // friendly types.
                 //
                 var parameterType = parameter.PropertyType;
-                var parameterTypeMapping = (TheoremVariableTypeMappingAttribute)parameterType.GetCustomAttributes(typeof(TheoremVariableTypeMappingAttribute), false).SingleOrDefault();
+                var parameterTypeMapping = parameterType.GetCustomAttributes<TheoremVariableTypeMappingAttribute>(false).SingleOrDefault();
                 
                 if (parameterTypeMapping != null)
                 {
@@ -160,7 +160,7 @@
                 // friendly types.
                 //
                 var parameterType = parameter.FieldType;
-                var parameterTypeMapping = (TheoremVariableTypeMappingAttribute)parameterType.GetCustomAttributes(typeof(TheoremVariableTypeMappingAttribute), false).SingleOrDefault();
+                var parameterTypeMapping = parameterType.GetCustomAttributes<TheoremVariableTypeMappingAttribute>(false).SingleOrDefault();
 
                 if (parameterTypeMapping != null)
                 {
@@ -255,7 +255,7 @@
                 //
                 // Straightforward case of having an "onymous type" at hand.
                 //
-                T result = Activator.CreateInstance<T>();
+                T result = Activator.CreateInstance<T>()!;
 
                 foreach (var parameter in environment.Keys)
                 {
@@ -270,7 +270,7 @@
                         FieldInfo parameterField => parameterField.FieldType,
                         _ => throw new NotSupportedException(),
                     };
-                    var parameterTypeMapping = (TheoremVariableTypeMappingAttribute)parameterType.GetCustomAttributes(typeof(TheoremVariableTypeMappingAttribute), false).SingleOrDefault();
+                    var parameterTypeMapping = parameterType.GetCustomAttributes<TheoremVariableTypeMappingAttribute>(false).SingleOrDefault();
                     
                     if (parameterTypeMapping != null)
                     {
@@ -336,14 +336,14 @@
         /// <returns>Z3 expression handle.</returns>
         private static Expr VisitConstant(Context context, ConstantExpression constant)
         {
-            if (constant.Type == typeof(int))
+            if (constant.Value is int iVal)
             {
                 //return context.MkNumeral((int)constant.Value, context.MkIntType());
-                return context.MkNumeral((int)constant.Value, context.IntSort);
+                return context.MkNumeral(iVal, context.IntSort);
             }
-            else if (constant.Type == typeof(bool))
+            else if (constant.Value is bool bVal)
             {
-                return (bool)constant.Value ? context.MkTrue() : context.MkFalse();
+                return bVal ? context.MkTrue() : context.MkFalse();
             }
 
             throw new NotSupportedException("Unsupported constant type.");
@@ -374,7 +374,7 @@
             // bindings table.
             //
             //PropertyInfo property;
-            Expr value;
+            Expr? value;
 
             //if ((property = member.Member as PropertyInfo) == null || !environment.TryGetValue(property, out value))
             //{
@@ -403,7 +403,7 @@
             //
             // Global rewriter registered?
             //
-            var rewriterAttr = (TheoremGlobalRewriterAttribute)typeof(T).GetCustomAttributes(typeof(TheoremGlobalRewriterAttribute), false).SingleOrDefault();
+            var rewriterAttr = typeof(T).GetCustomAttributes<TheoremGlobalRewriterAttribute>(false).SingleOrDefault();
             
             if (rewriterAttr != null)
             {
@@ -556,7 +556,7 @@
             //
             // Does the method have a rewriter attribute applied?
             //
-            var rewriterAttr = (TheoremPredicateRewriterAttribute)method.GetCustomAttributes(typeof(TheoremPredicateRewriterAttribute), false).SingleOrDefault();
+            var rewriterAttr = method.GetCustomAttributes<TheoremPredicateRewriterAttribute>(false).SingleOrDefault();
             
             if (rewriterAttr != null)
             {
@@ -573,7 +573,7 @@
                 //
                 // Assume a parameterless public constructor to new up the rewriter.
                 //
-                var rewriter = (ITheoremPredicateRewriter)Activator.CreateInstance(rewriterType);
+                var rewriter = (ITheoremPredicateRewriter)Activator.CreateInstance(rewriterType)!;
 
                 //
                 // Make sure we don't get stuck when the rewriter just returned its input. Valid
