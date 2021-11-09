@@ -15,12 +15,12 @@
         /// <summary>
         /// Theorem constraints.
         /// </summary>
-        private IEnumerable<LambdaExpression> constraints;
+        private readonly IEnumerable<LambdaExpression> constraints;
 
         /// <summary>
         /// Z3 context under which the theorem is solved.
         /// </summary>
-        private Z3Context context;
+        private readonly Z3Context context;
 
         /// <summary>
         /// Creates a new theorem for the given Z3 context.
@@ -97,7 +97,7 @@
 
                 if (status != Status.SATISFIABLE)
                 {
-                    return default(T);
+                    return default;
                 }
 
                 return GetSolution<T>(solver.Model, environment);
@@ -374,14 +374,13 @@
             // bindings table.
             //
             //PropertyInfo property;
-            Expr? value;
 
             //if ((property = member.Member as PropertyInfo) == null || !environment.TryGetValue(property, out value))
             //{
             //    throw new NotSupportedException("Unknown parameter encountered: " + member.Member.Name + ".");
             //}
 
-            if (!((member.Member is PropertyInfo property && environment.TryGetValue(property, out value)) ||
+            if (!((member.Member is PropertyInfo property && environment.TryGetValue(property, out Expr? value)) ||
                   (member.Member is FieldInfo field && environment.TryGetValue(field, out value))))
             {
                 throw new NotSupportedException("Unknown parameter encountered: " + member.Member.Name + ".");
@@ -457,74 +456,29 @@
             // Largely table-driven mechanism, providing constructor lambdas to generic Visit*
             // methods, classified by type and arity.
             //
-            switch (expression.NodeType)
+            return expression.NodeType switch
             {
-                case ExpressionType.And:
-                case ExpressionType.AndAlso:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkAnd((BoolExpr)a, (BoolExpr)b));
-
-                case ExpressionType.Or:
-                case ExpressionType.OrElse:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkOr((BoolExpr)a, (BoolExpr)b));
-
-                case ExpressionType.ExclusiveOr:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkXor((BoolExpr)a, (BoolExpr)b));
-
-                case ExpressionType.Not:
-                    return VisitUnary(context, environment, (UnaryExpression)expression, param, (ctx, a) => ctx.MkNot((BoolExpr)a));
-
-                case ExpressionType.Negate:
-                case ExpressionType.NegateChecked:
-                    return VisitUnary(context, environment, (UnaryExpression)expression, param, (ctx, a) => ctx.MkUnaryMinus((ArithExpr)a));
-
-                case ExpressionType.Add:
-                case ExpressionType.AddChecked:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkAdd((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.Subtract:
-                case ExpressionType.SubtractChecked:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkSub((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.Multiply:
-                case ExpressionType.MultiplyChecked:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkMul((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.Divide:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkDiv((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.Modulo:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkRem((IntExpr)a, (IntExpr)b));
-
-                case ExpressionType.LessThan:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkLt((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.LessThanOrEqual:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkLe((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.GreaterThan:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkGt((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.GreaterThanOrEqual:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkGe((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.Equal:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkEq(a, b));
-
-                case ExpressionType.NotEqual:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkNot(ctx.MkEq(a, b)));
-
-                case ExpressionType.MemberAccess:
-                    return VisitMember(environment, (MemberExpression)expression, param);
-
-                case ExpressionType.Constant:
-                    return VisitConstant(context, (ConstantExpression)expression);
-
-                case ExpressionType.Call:
-                    return VisitCall(context, environment, (MethodCallExpression)expression, param);
-
-                default:
-                    throw new NotSupportedException("Unsupported expression node type encountered: " + expression.NodeType);
-            }
+                ExpressionType.And or ExpressionType.AndAlso => VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkAnd((BoolExpr)a, (BoolExpr)b)),
+                ExpressionType.Or or ExpressionType.OrElse => VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkOr((BoolExpr)a, (BoolExpr)b)),
+                ExpressionType.ExclusiveOr => VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkXor((BoolExpr)a, (BoolExpr)b)),
+                ExpressionType.Not => VisitUnary(context, environment, (UnaryExpression)expression, param, (ctx, a) => ctx.MkNot((BoolExpr)a)),
+                ExpressionType.Negate or ExpressionType.NegateChecked => VisitUnary(context, environment, (UnaryExpression)expression, param, (ctx, a) => ctx.MkUnaryMinus((ArithExpr)a)),
+                ExpressionType.Add or ExpressionType.AddChecked => VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkAdd((ArithExpr)a, (ArithExpr)b)),
+                ExpressionType.Subtract or ExpressionType.SubtractChecked => VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkSub((ArithExpr)a, (ArithExpr)b)),
+                ExpressionType.Multiply or ExpressionType.MultiplyChecked => VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkMul((ArithExpr)a, (ArithExpr)b)),
+                ExpressionType.Divide => VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkDiv((ArithExpr)a, (ArithExpr)b)),
+                ExpressionType.Modulo => VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkRem((IntExpr)a, (IntExpr)b)),
+                ExpressionType.LessThan => VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkLt((ArithExpr)a, (ArithExpr)b)),
+                ExpressionType.LessThanOrEqual => VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkLe((ArithExpr)a, (ArithExpr)b)),
+                ExpressionType.GreaterThan => VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkGt((ArithExpr)a, (ArithExpr)b)),
+                ExpressionType.GreaterThanOrEqual => VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkGe((ArithExpr)a, (ArithExpr)b)),
+                ExpressionType.Equal => VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkEq(a, b)),
+                ExpressionType.NotEqual => VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkNot(ctx.MkEq(a, b))),
+                ExpressionType.MemberAccess => VisitMember(environment, (MemberExpression)expression, param),
+                ExpressionType.Constant => VisitConstant(context, (ConstantExpression)expression),
+                ExpressionType.Call => VisitCall(context, environment, (MethodCallExpression)expression, param),
+                _ => throw new NotSupportedException("Unsupported expression node type encountered: " + expression.NodeType),
+            };
         }
 
         /// <summary>

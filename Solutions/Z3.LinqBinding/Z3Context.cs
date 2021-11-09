@@ -15,15 +15,17 @@
         /// <summary>
         /// Z3 configuration object.
         /// </summary>
-        private Dictionary<string, string> config;
+        private readonly Dictionary<string, string> config;
 
         /// <summary>
         /// Creates a new Z3 context for theorem proving.
         /// </summary>
         public Z3Context()
         {
-            this.config = new Dictionary<string, string>();
-            this.config.Add("MODEL", "true");
+            this.config = new Dictionary<string, string>
+            {
+                { "MODEL", "true" }
+            };
         }
 
         /// <summary>
