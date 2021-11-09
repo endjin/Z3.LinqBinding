@@ -5,6 +5,17 @@
     using Z3.LinqBinding;
     using Z3.LinqBinding.Sudoku;
 
+    // This doesn't work because they have special handling for constructing ordinary (albeit private) properties,
+    // and also for anonymous types, but they have no support for the standard contstructor-based init idiom
+    // that records use.
+    //    public record RTheorem<T1, T2>(T1 X, T2 Y);
+    // But if the record type offers a default ctor, it's happy.
+    public record RTheorem<T1, T2>
+    {
+        public T1 X { get; init; }
+        public T2 Y { get; init; }
+    }
+
     public static class Program
     {
         private static void Main(string[] args)
@@ -21,6 +32,47 @@
                 var result = theorem.Solve();
                 Console.WriteLine(result);
             }
+
+            // Ian trying new stuff
+            // Couldn't use tuples, because their members are fields.
+            // But we fixed it!
+            using (var ctx = new Z3Context())
+            {
+                ctx.Log = Console.Out; // see internal logging
+
+                //    var theorem = from t in ctx.NewTheorem((x: default(bool), y: default(bool)))
+                var theorem = from t in ctx.NewTheorem<(bool x, bool y)>()
+                              where t.x ^ t.y
+                              select t;
+
+                var result = theorem.Solve();
+                Console.WriteLine(result);
+            }
+
+            using (var ctx = new Z3Context())
+            {
+                ctx.Log = Console.Out; // see internal logging
+
+                var theorem = from t in ctx.NewTheorem(new RTheorem<bool, bool>())
+                              where t.X ^ t.Y
+                              select t;
+
+                var result = theorem.Solve();
+                Console.WriteLine(result);
+            }
+
+            // Can't use old-school Tuple because there's no zero-args ctor.
+            //using (var ctx = new Z3Context())
+            //{
+            //    ctx.Log = Console.Out; // see internal logging
+
+            //    var theorem = from t in ctx.NewTheorem(new Tuple<bool, bool>(default(bool), default(bool)))
+            //                  where t.Item1 ^ t.Item2
+            //                  select t;
+
+            //    var result = theorem.Solve();
+            //    Console.WriteLine(result);
+            //}
 
             // Advanced Usage
             using (var ctx = new Z3Context())

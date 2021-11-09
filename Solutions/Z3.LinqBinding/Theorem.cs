@@ -110,9 +110,9 @@
         /// <typeparam name="T">Theorem environment type to create a mapping table for.</typeparam>
         /// <param name="context">Z3 context.</param>
         /// <returns>Environment mapping table from .NET properties onto Z3 handles.</returns>
-        private static Dictionary<PropertyInfo, Expr> GetEnvironment<T>(Context context)
+        private static Dictionary<MemberInfo, Expr> GetEnvironment<T>(Context context)
         {
-            var environment = new Dictionary<PropertyInfo, Expr>();
+            var environment = new Dictionary<MemberInfo, Expr>();
 
             //
             // All public properties are considered part of the theorem's environment.
@@ -152,6 +152,39 @@
                     throw new NotSupportedException("Unsupported parameter type for " + parameter.Name + ".");
                 }
             }
+            foreach (var parameter in typeof(T).GetFields(BindingFlags.Public | BindingFlags.Instance))
+            {
+                //
+                // Normalize types when facing Z3. Theorem variable type mappings allow for strong
+                // typing within the theorem, while underlying variable representations are Z3-
+                // friendly types.
+                //
+                var parameterType = parameter.FieldType;
+                var parameterTypeMapping = (TheoremVariableTypeMappingAttribute)parameterType.GetCustomAttributes(typeof(TheoremVariableTypeMappingAttribute), false).SingleOrDefault();
+
+                if (parameterTypeMapping != null)
+                {
+                    parameterType = parameterTypeMapping.RegularType;
+                }
+
+                //
+                // Map the environment onto Z3-compatible types.
+                //
+                if (parameterType == typeof(bool))
+                {
+                    //environment.Add(parameter, context.MkConst(parameter.Name, context.MkBoolType()));
+                    environment.Add(parameter, context.MkBoolConst(parameter.Name));
+                }
+                else if (parameterType == typeof(int))
+                {
+                    //environment.Add(parameter, context.MkConst(parameter.Name, context.MkIntType()));
+                    environment.Add(parameter, context.MkIntConst(parameter.Name));
+                }
+                else
+                {
+                    throw new NotSupportedException("Unsupported parameter type for " + parameter.Name + ".");
+                }
+            }
 
             return environment;
         }
@@ -163,7 +196,7 @@
         /// <param name="model">Z3 model to evaluate theorem parameters under.</param>
         /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
         /// <returns>Instance of the enviroment type with theorem-satisfying values.</returns>
-        private static T GetSolution<T>(Model model, Dictionary<PropertyInfo, Expr> environment)
+        private static T GetSolution<T>(Model model, Dictionary<MemberInfo, Expr> environment)
         {
             Type t = typeof(T);
 
@@ -189,7 +222,7 @@
                 //
                 var fields = t.GetFields(BindingFlags.NonPublic | BindingFlags.Instance);
 
-                foreach (var parameter in environment.Keys)
+                foreach (var parameter in environment.Keys.Cast<PropertyInfo>())
                 {
                     //
                     // Mapping from property to field.
@@ -231,7 +264,12 @@
                     // typing within the theorem, while underlying variable representations are Z3-
                     // friendly types.
                     //
-                    var parameterType = parameter.PropertyType;
+                    var parameterType = parameter switch
+                    {
+                        PropertyInfo parameterProperty => parameterProperty.PropertyType,
+                        FieldInfo parameterField => parameterField.FieldType,
+                        _ => throw new NotSupportedException(),
+                    };
                     var parameterTypeMapping = (TheoremVariableTypeMappingAttribute)parameterType.GetCustomAttributes(typeof(TheoremVariableTypeMappingAttribute), false).SingleOrDefault();
                     
                     if (parameterTypeMapping != null)
@@ -264,16 +302,26 @@
                     //
                     if (parameterTypeMapping != null)
                     {
-                        var ctor = parameter.PropertyType.GetConstructor(new Type[] { parameterType });
+                        var ctor = parameterType.GetConstructor(new Type[] { parameterType });
                         if (ctor == null)
                         {
-                            throw new InvalidOperationException("Could not construct an instance of the mapped type " + parameter.PropertyType.Name + ". No public constructor with parameter type " + parameterType + " found.");
+                            throw new InvalidOperationException("Could not construct an instance of the mapped type " + parameterType.Name + ". No public constructor with parameter type " + parameterType + " found.");
                         }
 
                         value = ctor.Invoke(new object[] { value });
                     }
 
-                    parameter.SetValue(result, value, null);
+                    switch (parameter)
+                    {
+                        case PropertyInfo parameterProperty:
+                            parameterProperty.SetValue(result, value, null);
+                            break;
+                        case FieldInfo parameterField:
+                            object box = result;
+                            parameterField.SetValue(box, value);
+                            result = (T)box;
+                            break;
+                    }
                 }
 
                 return result;
@@ -308,7 +356,7 @@
         /// <param name="member">Member expression.</param>
         /// <param name="param">Parameter used to express the constraint on.</param>
         /// <returns>Z3 expression handle.</returns>
-        private static Expr VisitMember(Dictionary<PropertyInfo, Expr> environment, MemberExpression member, ParameterExpression param)
+        private static Expr VisitMember(Dictionary<MemberInfo, Expr> environment, MemberExpression member, ParameterExpression param)
         {
             //
             // E.g. Symbols l = ...;
@@ -325,10 +373,16 @@
             // in the environment type. So we just try to find the mapping from the environment
             // bindings table.
             //
-            PropertyInfo property;
+            //PropertyInfo property;
             Expr value;
 
-            if ((property = member.Member as PropertyInfo) == null || !environment.TryGetValue(property, out value))
+            //if ((property = member.Member as PropertyInfo) == null || !environment.TryGetValue(property, out value))
+            //{
+            //    throw new NotSupportedException("Unknown parameter encountered: " + member.Member.Name + ".");
+            //}
+
+            if (!((member.Member is PropertyInfo property && environment.TryGetValue(property, out value)) ||
+                  (member.Member is FieldInfo field && environment.TryGetValue(field, out value))))
             {
                 throw new NotSupportedException("Unknown parameter encountered: " + member.Member.Name + ".");
             }
@@ -342,7 +396,7 @@
         /// <param name="context">Z3 context.</param>
         /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
         /// <typeparam name="T">Theorem environment type.</typeparam>
-        private void AssertConstraints<T>(Context context, Solver solver, Dictionary<PropertyInfo, Expr> environment)
+        private void AssertConstraints<T>(Context context, Solver solver, Dictionary<MemberInfo, Expr> environment)
         {
             var constraints = this.constraints;
 
@@ -366,12 +420,12 @@
                 //
                 // Assume a parameterless public constructor to new up the rewriter.
                 //
-                var rewriter = (ITheoremGlobalRewriter)Activator.CreateInstance(rewriterType);
+                var rewriter = (ITheoremGlobalRewriter)Activator.CreateInstance(rewriterType)!;
 
                 //
                 // Do the rewrite.
                 //
-                constraints = rewriter?.Rewrite(constraints);
+                constraints = rewriter.Rewrite(constraints);
             }
 
             //
@@ -397,7 +451,7 @@
         /// <param name="expression">LINQ expression tree node to be translated.</param>
         /// <param name="param">Parameter used to express the constraint on.</param>
         /// <returns>Z3 expression handle.</returns>
-        private Expr Visit(Context context, Dictionary<PropertyInfo, Expr> environment, Expression expression, ParameterExpression param)
+        private Expr Visit(Context context, Dictionary<MemberInfo, Expr> environment, Expression expression, ParameterExpression param)
         {
             //
             // Largely table-driven mechanism, providing constructor lambdas to generic Visit*
@@ -482,7 +536,7 @@
         /// <param name="ctor">Constructor to combine recursive visitor results.</param>
         /// <param name="param">Parameter used to express the constraint on.</param>
         /// <returns>Z3 expression handle.</returns>
-        private Expr VisitBinary(Context context, Dictionary<PropertyInfo, Expr> environment, BinaryExpression expression, ParameterExpression param, Func<Context, Expr, Expr, Expr> ctor)
+        private Expr VisitBinary(Context context, Dictionary<MemberInfo, Expr> environment, BinaryExpression expression, ParameterExpression param, Func<Context, Expr, Expr, Expr> ctor)
         {
             return ctor(context, Visit(context, environment, expression.Left, param), Visit(context, environment, expression.Right, param));
         }
@@ -495,7 +549,7 @@
         /// <param name="call">Method call expression.</param>
         /// <param name="param">Parameter used to express the constraint on.</param>
         /// <returns>Z3 expression handle.</returns>
-        private Expr VisitCall(Context context, Dictionary<PropertyInfo, Expr> environment, MethodCallExpression call, ParameterExpression param)
+        private Expr VisitCall(Context context, Dictionary<MemberInfo, Expr> environment, MethodCallExpression call, ParameterExpression param)
         {
             var method = call.Method;
 
@@ -567,7 +621,7 @@
         /// <param name="ctor">Constructor to combine recursive visitor results.</param>
         /// <param name="param">Parameter used to express the constraint on.</param>
         /// <returns>Z3 expression handle.</returns>
-        private Expr VisitUnary(Context context, Dictionary<PropertyInfo, Expr> environment, UnaryExpression expression, ParameterExpression param, Func<Context, Expr, Expr> ctor)
+        private Expr VisitUnary(Context context, Dictionary<MemberInfo, Expr> environment, UnaryExpression expression, ParameterExpression param, Func<Context, Expr, Expr> ctor)
         {
             return ctor(context, Visit(context, environment, expression.Operand, param));
         }
