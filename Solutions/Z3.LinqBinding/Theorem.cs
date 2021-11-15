@@ -101,6 +101,47 @@
         }
 
         /// <summary>
+        /// Asserts the theorem constraints on the Z3 context.
+        /// </summary>
+        /// <param name="context">Z3 context.</param>
+        /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
+        /// <typeparam name="T">Theorem environment type.</typeparam>
+        private void AssertConstraints<T>(Context context, Solver solver, Dictionary<MemberInfo, Expr> environment)
+        {
+            var constraints = this.constraints;
+
+            // Global rewriter registered?
+            var rewriterAttr = typeof(T).GetCustomAttributes<TheoremGlobalRewriterAttribute>(false).SingleOrDefault();
+
+            if (rewriterAttr != null)
+            {
+                // Make sure the specified rewriter type implements the ITheoremGlobalRewriter.
+                var rewriterType = rewriterAttr.RewriterType;
+
+                if (!typeof(ITheoremGlobalRewriter).IsAssignableFrom(rewriterType))
+                {
+                    throw new InvalidOperationException("Invalid global rewriter type definition. Did you implement ITheoremGlobalRewriter?");
+                }
+
+                // Assume a parameterless public constructor to new up the rewriter.
+                var rewriter = (ITheoremGlobalRewriter)Activator.CreateInstance(rewriterType)!;
+
+                // Do the rewrite.
+                constraints = rewriter.Rewrite(constraints);
+            }
+
+            // Visit, assert and log.
+            foreach (var constraint in constraints)
+            {
+                BoolExpr c = (BoolExpr)Visit(context, environment, constraint.Body, constraint.Parameters[0]);
+
+                solver.Assert(c);
+
+                this.context.LogWriteLine(c.ToString());
+            }
+        }
+
+        /// <summary>
         /// Maps the properties on the theorem environment type to Z3 handles for bound variables.
         /// </summary>
         /// <typeparam name="T">Theorem environment type to create a mapping table for.</typeparam>
@@ -151,8 +192,8 @@
                 // Normalize types when facing Z3. Theorem variable type mappings allow for strong
                 // typing within the theorem, while underlying variable representations are Z3-
                 // friendly types.
-                var parameterType = parameter.FieldType;
-                var parameterTypeMapping = parameterType.GetCustomAttributes<TheoremVariableTypeMappingAttribute>(false).SingleOrDefault();
+                Type? parameterType = parameter.FieldType;
+                TheoremVariableTypeMappingAttribute? parameterTypeMapping = parameterType.GetCustomAttributes<TheoremVariableTypeMappingAttribute>(false).SingleOrDefault();
 
                 if (parameterTypeMapping != null)
                 {
@@ -247,13 +288,14 @@
                     // Normalize types when facing Z3. Theorem variable type mappings allow for strong
                     // typing within the theorem, while underlying variable representations are Z3-
                     // friendly types.
-                    var parameterType = parameter switch
+                    Type? parameterType = parameter switch
                     {
                         PropertyInfo parameterProperty => parameterProperty.PropertyType,
                         FieldInfo parameterField => parameterField.FieldType,
                         _ => throw new NotSupportedException(),
                     };
-                    var parameterTypeMapping = parameterType.GetCustomAttributes<TheoremVariableTypeMappingAttribute>(false).SingleOrDefault();
+
+                    TheoremVariableTypeMappingAttribute? parameterTypeMapping = parameterType.GetCustomAttributes<TheoremVariableTypeMappingAttribute>(false).SingleOrDefault();
                     
                     if (parameterTypeMapping != null)
                     {
@@ -308,6 +350,223 @@
         }
 
         /// <summary>
+        /// Main visitor method to translate the LINQ expression tree into a Z3 expression handle.
+        /// </summary>
+        /// <param name="context">Z3 context.</param>
+        /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
+        /// <param name="expression">LINQ expression tree node to be translated.</param>
+        /// <param name="param">Parameter used to express the constraint on.</param>
+        /// <returns>Z3 expression handle.</returns>
+        private Expr Visit(Context context, Dictionary<MemberInfo, Expr> environment, Expression expression, ParameterExpression param)
+        {
+            //
+            // Largely table-driven mechanism, providing constructor lambdas to generic Visit*
+            // methods, classified by type and arity.
+            //
+            switch (expression.NodeType)
+            {
+                case ExpressionType.And:
+                case ExpressionType.AndAlso:
+                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkAnd((BoolExpr)a, (BoolExpr)b));
+
+                case ExpressionType.Or:
+                case ExpressionType.OrElse:
+                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkOr((BoolExpr)a, (BoolExpr)b));
+
+                case ExpressionType.ExclusiveOr:
+                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkXor((BoolExpr)a, (BoolExpr)b));
+
+                case ExpressionType.Not:
+                    return VisitUnary(context, environment, (UnaryExpression)expression, param, (ctx, a) => ctx.MkNot((BoolExpr)a));
+
+                case ExpressionType.Negate:
+                case ExpressionType.NegateChecked:
+                    return VisitUnary(context, environment, (UnaryExpression)expression, param, (ctx, a) => ctx.MkUnaryMinus((ArithExpr)a));
+
+                case ExpressionType.Add:
+                case ExpressionType.AddChecked:
+                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) =>
+                    {
+                        if (a is ArithExpr && b is ArithExpr)
+                        {
+                            return ctx.MkAdd((ArithExpr)a, (ArithExpr)b);
+                        }
+                        else if (a is FPExpr && b is FPExpr)
+                        {
+                            return ctx.MkFPAdd(ctx.MkFPRoundNearestTiesToAway(), (FPExpr)a, (FPExpr)b);
+                        }
+
+                        return null;
+                    });
+
+                case ExpressionType.Subtract:
+                case ExpressionType.SubtractChecked:
+                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkSub((ArithExpr)a, (ArithExpr)b));
+
+                case ExpressionType.Multiply:
+                case ExpressionType.MultiplyChecked:
+                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) =>
+                    {
+                        if (a is ArithExpr && b is ArithExpr)
+                        {
+                            return ctx.MkMul((ArithExpr)a, (ArithExpr)b);
+                        }
+                        else if (a is FPExpr && b is FPExpr)
+                        {
+                            return ctx.MkFPMul(ctx.MkFPRoundNearestTiesToAway(), (FPExpr)a, (FPExpr)b);
+                        }
+
+                        return null;
+                    });
+
+                case ExpressionType.Divide:
+                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkDiv((ArithExpr)a, (ArithExpr)b));
+
+                case ExpressionType.Modulo:
+                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkRem((IntExpr)a, (IntExpr)b));
+
+                case ExpressionType.LessThan:
+                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkLt((ArithExpr)a, (ArithExpr)b));
+
+                case ExpressionType.LessThanOrEqual:
+                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) =>
+                    {
+                        if (a is ArithExpr && b is ArithExpr)
+                        {
+                            return ctx.MkLe((ArithExpr)a, (ArithExpr)b);
+                        }
+                        else if (a is FPExpr && b is FPExpr)
+                        {
+                            return ctx.MkFPLEq((FPExpr)a, (FPExpr)b);
+                        }
+
+                        return null;
+                    });
+
+                case ExpressionType.GreaterThan:
+                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) =>
+                    {
+                        if (a is ArithExpr && b is ArithExpr)
+                        {
+                            return ctx.MkGt((ArithExpr)a, (ArithExpr)b);
+                        }
+                        else if (a is FPExpr && b is FPExpr)
+                        {
+                            return ctx.MkFPGt((FPExpr)a, (FPExpr)b);
+                        }
+
+                        return null;
+                    });
+
+                case ExpressionType.GreaterThanOrEqual:
+                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) =>
+                    {
+                        if (a is ArithExpr && b is ArithExpr)
+                        {
+                            return ctx.MkGe((ArithExpr)a, (ArithExpr)b);
+                        }
+                        else if (a is FPExpr && b is FPExpr)
+                        {
+                            return ctx.MkFPGEq((FPExpr)a, (FPExpr)b);
+                        }
+
+                        return null;
+                    });
+
+                case ExpressionType.Equal:
+                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkEq(a, b));
+
+                case ExpressionType.NotEqual:
+                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkNot(ctx.MkEq(a, b)));
+
+                case ExpressionType.MemberAccess:
+                    return VisitMember(environment, (MemberExpression)expression, param);
+
+                case ExpressionType.Constant:
+                    return VisitConstant(context, (ConstantExpression)expression);
+
+                case ExpressionType.Call:
+                    return VisitCall(context, environment, (MethodCallExpression)expression, param);
+
+                default:
+                    throw new NotSupportedException("Unsupported expression node type encountered: " + expression.NodeType);
+            }
+        }
+ 
+        /// <summary>
+        /// Visitor method to translate a binary expression.
+        /// </summary>
+        /// <param name="context">Z3 context.</param>
+        /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
+        /// <param name="expression">Binary expression.</param>
+        /// <param name="ctor">Constructor to combine recursive visitor results.</param>
+        /// <param name="param">Parameter used to express the constraint on.</param>
+        /// <returns>Z3 expression handle.</returns>
+        private Expr VisitBinary(Context context, Dictionary<MemberInfo, Expr> environment, BinaryExpression expression, ParameterExpression param, Func<Context, Expr, Expr, Expr> ctor)
+        {
+            return ctor(context, Visit(context, environment, expression.Left, param), Visit(context, environment, expression.Right, param));
+        }
+
+        /// <summary>
+        /// Visitor method to translate a method call expression.
+        /// </summary>
+        /// <param name="context">Z3 context.</param>
+        /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
+        /// <param name="call">Method call expression.</param>
+        /// <param name="param">Parameter used to express the constraint on.</param>
+        /// <returns>Z3 expression handle.</returns>
+        private Expr VisitCall(Context context, Dictionary<MemberInfo, Expr> environment, MethodCallExpression call, ParameterExpression param)
+        {
+            var method = call.Method;
+
+            //
+            // Does the method have a rewriter attribute applied?
+            //
+            var rewriterAttr = method.GetCustomAttributes<TheoremPredicateRewriterAttribute>(false).SingleOrDefault();
+
+            if (rewriterAttr != null)
+            {
+                // Make sure the specified rewriter type implements the ITheoremPredicateRewriter.
+                var rewriterType = rewriterAttr.RewriterType;
+
+                if (!typeof(ITheoremPredicateRewriter).IsAssignableFrom(rewriterType))
+                {
+                    throw new InvalidOperationException("Invalid predicate rewriter type definition. Did you implement ITheoremPredicateRewriter?");
+                }
+
+                // Assume a parameterless public constructor to new up the rewriter.
+                var rewriter = (ITheoremPredicateRewriter)Activator.CreateInstance(rewriterType)!;
+
+                // Make sure we don't get stuck when the rewriter just returned its input. Valid
+                // rewriters should satisfy progress guarantees.
+                var result = rewriter.Rewrite(call);
+
+                if (result == call)
+                {
+                    throw new InvalidOperationException("The expression tree rewriter of type " + rewriterType.Name + " did not perform any rewrite. Aborting compilation to avoid infinite looping.");
+                }
+
+                // Visit the rewritten expression.
+                return Visit(context, environment, result, param);
+            }
+
+            // Filter for known Z3 operators.
+            if (method.IsGenericMethod && method.GetGenericMethodDefinition() == typeof(Z3Methods).GetMethod("Distinct"))
+            {
+                // We know the signature of the Distinct method call. Its argument is a params
+                // array, hence we expect a NewArrayExpression.
+                var arr = (NewArrayExpression)call.Arguments[0];
+                var args = from arg in arr.Expressions select Visit(context, environment, arg, param);
+
+                return context.MkDistinct(args.ToArray());
+            }
+            else
+            {
+                throw new NotSupportedException("Unknown method call:" + method.ToString());
+            }
+        }
+
+        /// <summary>
         /// Visitor method to translate a constant expression.
         /// </summary>
         /// <param name="context">Z3 context.</param>
@@ -358,264 +617,6 @@
             }
 
             return value;
-        }
-
-        /// <summary>
-        /// Asserts the theorem constraints on the Z3 context.
-        /// </summary>
-        /// <param name="context">Z3 context.</param>
-        /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
-        /// <typeparam name="T">Theorem environment type.</typeparam>
-        private void AssertConstraints<T>(Context context, Solver solver, Dictionary<MemberInfo, Expr> environment)
-        {
-            var constraints = this.constraints;
-
-            // Global rewriter registered?
-            var rewriterAttr = typeof(T).GetCustomAttributes<TheoremGlobalRewriterAttribute>(false).SingleOrDefault();
-            
-            if (rewriterAttr != null)
-            {
-                // Make sure the specified rewriter type implements the ITheoremGlobalRewriter.
-                var rewriterType = rewriterAttr.RewriterType;
-               
-                if (!typeof(ITheoremGlobalRewriter).IsAssignableFrom(rewriterType))
-                {
-                    throw new InvalidOperationException("Invalid global rewriter type definition. Did you implement ITheoremGlobalRewriter?");
-                }
-
-                // Assume a parameterless public constructor to new up the rewriter.
-                var rewriter = (ITheoremGlobalRewriter)Activator.CreateInstance(rewriterType)!;
-
-                // Do the rewrite.
-                constraints = rewriter.Rewrite(constraints);
-            }
-
-            // Visit, assert and log.
-            foreach (var constraint in constraints)
-            {
-                BoolExpr c = (BoolExpr)Visit(context, environment, constraint.Body, constraint.Parameters[0]);
-
-                solver.Assert(c);
-
-                this.context.LogWriteLine(c.ToString());
-            }
-        }
-
-        /// <summary>
-        /// Main visitor method to translate the LINQ expression tree into a Z3 expression handle.
-        /// </summary>
-        /// <param name="context">Z3 context.</param>
-        /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
-        /// <param name="expression">LINQ expression tree node to be translated.</param>
-        /// <param name="param">Parameter used to express the constraint on.</param>
-        /// <returns>Z3 expression handle.</returns>
-        private Expr Visit(Context context, Dictionary<MemberInfo, Expr> environment, Expression expression, ParameterExpression param)
-        {
-            //
-            // Largely table-driven mechanism, providing constructor lambdas to generic Visit*
-            // methods, classified by type and arity.
-            //
-            switch (expression.NodeType)
-            {
-                case ExpressionType.And:
-                case ExpressionType.AndAlso:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkAnd((BoolExpr)a, (BoolExpr)b));
-
-                case ExpressionType.Or:
-                case ExpressionType.OrElse:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkOr((BoolExpr)a, (BoolExpr)b));
-
-                case ExpressionType.ExclusiveOr:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkXor((BoolExpr)a, (BoolExpr)b));
-
-                case ExpressionType.Not:
-                    return VisitUnary(context, environment, (UnaryExpression)expression, param, (ctx, a) => ctx.MkNot((BoolExpr)a));
-
-                case ExpressionType.Negate:
-                case ExpressionType.NegateChecked:
-                    return VisitUnary(context, environment, (UnaryExpression)expression, param, (ctx, a) => ctx.MkUnaryMinus((ArithExpr)a));
-
-                case ExpressionType.Add:
-                case ExpressionType.AddChecked:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => 
-                    {
-                        if (a is ArithExpr && b is ArithExpr)
-                        {
-                            return ctx.MkAdd((ArithExpr)a, (ArithExpr)b);
-                        }
-                        else if (a is FPExpr && b is FPExpr)
-                        {
-                            return ctx.MkFPAdd(ctx.MkFPRoundNearestTiesToAway(), (FPExpr)a, (FPExpr)b);
-                        }
-
-                        return null;
-                    });
-
-                case ExpressionType.Subtract:
-                case ExpressionType.SubtractChecked:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkSub((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.Multiply:
-                case ExpressionType.MultiplyChecked:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => 
-                    {
-                        if (a is ArithExpr && b is ArithExpr)
-                        {
-                            return ctx.MkMul((ArithExpr)a, (ArithExpr)b);
-                        }
-                        else if (a is FPExpr  && b is FPExpr) 
-                        {
-                            return ctx.MkFPMul(ctx.MkFPRoundNearestTiesToAway(), (FPExpr)a, (FPExpr)b);
-                        }
-
-                        return null;
-                    });
-
-                case ExpressionType.Divide:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkDiv((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.Modulo:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkRem((IntExpr)a, (IntExpr)b));
-
-                case ExpressionType.LessThan:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkLt((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.LessThanOrEqual:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) =>
-                    { 
-                        if (a is ArithExpr && b is ArithExpr)
-                        {
-                            return ctx.MkLe((ArithExpr)a, (ArithExpr)b);
-                        }
-                        else if (a is FPExpr && b is FPExpr)
-                        {
-                            return ctx.MkFPLEq((FPExpr)a, (FPExpr)b);
-                        }
-
-                        return null;
-                    });
-
-                case ExpressionType.GreaterThan:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) =>
-                    { 
-                        if (a is ArithExpr && b is ArithExpr)
-                        {
-                            return ctx.MkGt((ArithExpr)a, (ArithExpr)b);
-                        }
-                        else if (a is FPExpr && b is FPExpr)
-                        {
-                            return ctx.MkFPGt((FPExpr)a, (FPExpr)b);
-                        }
-
-                        return null;
-                    });
-
-                case ExpressionType.GreaterThanOrEqual:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) =>
-                    {
-                        if (a is ArithExpr && b is ArithExpr)
-                        {
-                            return ctx.MkGe((ArithExpr)a, (ArithExpr)b);
-                        }
-                        else if (a is FPExpr && b is FPExpr)
-                        {
-                            return ctx.MkFPGEq((FPExpr)a, (FPExpr)b);
-                        }
-
-                        return null;
-                    });
-
-                case ExpressionType.Equal:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkEq(a, b));
-
-                case ExpressionType.NotEqual:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkNot(ctx.MkEq(a, b)));
-
-                case ExpressionType.MemberAccess:
-                    return VisitMember(environment, (MemberExpression)expression, param);
-
-                case ExpressionType.Constant:
-                    return VisitConstant(context, (ConstantExpression)expression);
-
-                case ExpressionType.Call:
-                    return VisitCall(context, environment, (MethodCallExpression)expression, param);
-
-                default:
-                    throw new NotSupportedException("Unsupported expression node type encountered: " + expression.NodeType);
-            }
-        }
-
-        /// <summary>
-        /// Visitor method to translate a binary expression.
-        /// </summary>
-        /// <param name="context">Z3 context.</param>
-        /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
-        /// <param name="expression">Binary expression.</param>
-        /// <param name="ctor">Constructor to combine recursive visitor results.</param>
-        /// <param name="param">Parameter used to express the constraint on.</param>
-        /// <returns>Z3 expression handle.</returns>
-        private Expr VisitBinary(Context context, Dictionary<MemberInfo, Expr> environment, BinaryExpression expression, ParameterExpression param, Func<Context, Expr, Expr, Expr> ctor)
-        {
-            return ctor(context, Visit(context, environment, expression.Left, param), Visit(context, environment, expression.Right, param));
-        }
-
-        /// <summary>
-        /// Visitor method to translate a method call expression.
-        /// </summary>
-        /// <param name="context">Z3 context.</param>
-        /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
-        /// <param name="call">Method call expression.</param>
-        /// <param name="param">Parameter used to express the constraint on.</param>
-        /// <returns>Z3 expression handle.</returns>
-        private Expr VisitCall(Context context, Dictionary<MemberInfo, Expr> environment, MethodCallExpression call, ParameterExpression param)
-        {
-            var method = call.Method;
-
-            //
-            // Does the method have a rewriter attribute applied?
-            //
-            var rewriterAttr = method.GetCustomAttributes<TheoremPredicateRewriterAttribute>(false).SingleOrDefault();
-            
-            if (rewriterAttr != null)
-            {
-                // Make sure the specified rewriter type implements the ITheoremPredicateRewriter.
-                var rewriterType = rewriterAttr.RewriterType;
-                
-                if (!typeof(ITheoremPredicateRewriter).IsAssignableFrom(rewriterType))
-                {
-                    throw new InvalidOperationException("Invalid predicate rewriter type definition. Did you implement ITheoremPredicateRewriter?");
-                }
-
-                // Assume a parameterless public constructor to new up the rewriter.
-                var rewriter = (ITheoremPredicateRewriter)Activator.CreateInstance(rewriterType)!;
-
-                // Make sure we don't get stuck when the rewriter just returned its input. Valid
-                // rewriters should satisfy progress guarantees.
-                var result = rewriter.Rewrite(call);
-                
-                if (result == call)
-                {
-                    throw new InvalidOperationException("The expression tree rewriter of type " + rewriterType.Name + " did not perform any rewrite. Aborting compilation to avoid infinite looping.");
-                }
-
-                // Visit the rewritten expression.
-                return Visit(context, environment, result, param);
-            }
-
-            // Filter for known Z3 operators.
-            if (method.IsGenericMethod && method.GetGenericMethodDefinition() == typeof(Z3Methods).GetMethod("Distinct"))
-            {
-                // We know the signature of the Distinct method call. Its argument is a params
-                // array, hence we expect a NewArrayExpression.
-                var arr = (NewArrayExpression)call.Arguments[0];
-                var args = from arg in arr.Expressions select Visit(context, environment, arg, param);
-
-                return context.MkDistinct(args.ToArray());
-            }
-            else
-            {
-                throw new NotSupportedException("Unknown method call:" + method.ToString());
-            }
         }
 
         /// <summary>
