@@ -111,7 +111,7 @@ Import-Module $BuildModulePath -Force
 $SkipVersion = $false
 $SkipBuild = $false
 $CleanBuild = $false
-$SkipTest = $false
+$SkipTest = $true
 $SkipTestReport = $false
 $SkipPackage = $false
 
