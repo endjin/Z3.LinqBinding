@@ -13,24 +13,36 @@
         private static void Main(string[] args)
         {
             // Solving Canibals & Missionaires
-
             using (var ctx = new Z3Context())
             {
                 // ctx.Log = Console.Out; // see internal logging
 
-                var can = new MissionariesAndCannibals { NbMissionaries = 3, SizeBoat = 2, Length = 50 };
+                var can = new MissionariesAndCannibals 
+                { 
+                    NbMissionaries = 3, 
+                    SizeBoat = 2, 
+                    Length = 50 
+                };
 
-                var theorum = can.Create(ctx);
+                var theorem = can.Create(ctx);
 
-                var startTime = stopwatch.Elapsed;
+                var sw = Stopwatch.StartNew();
 
-                var result = theorum.Solve();
+                MissionariesAndCannibals? result = theorem.Solve();
+                sw.Stop();
 
-                var endTime = stopwatch.Elapsed;
+                Console.WriteLine($"Time to solution: {sw.Elapsed.TotalMilliseconds} ms");
+
+                sw = Stopwatch.StartNew();
+                var minimal = theorem.Optimize(Optimization.Minimize, t => t.Length);
+                sw.Stop();
+
+                Console.WriteLine($"Time to optimised solution: {sw.Elapsed.TotalMilliseconds} ms");
 
                 Console.WriteLine(result);
                 Console.WriteLine();
-                Console.WriteLine($"Time to solve: {endTime - startTime}");
+                Console.WriteLine(minimal);
+                Console.WriteLine();
             }
 
             // Basic Usage

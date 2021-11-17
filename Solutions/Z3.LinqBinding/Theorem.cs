@@ -6,6 +6,7 @@
     using Microsoft.Z3;
 
     using System.Collections;
+    using System.Diagnostics;
     using System.Globalization;
     using System.Linq.Expressions;
     using System.Reflection;
@@ -108,12 +109,56 @@
         }
 
         /// <summary>
+        /// Solves the theorem using Z3.
+        /// </summary>
+        /// <typeparam name="T">Theorem environment type.</typeparam>
+        /// <returns>Result of solving the theorem; default(T) if the theorem cannot be satisfied.</returns>
+        protected T Optimize<T>(Optimization direction, Expression<Func<T, int>> lambda)
+        {
+            Context context = this.context.CreateContext();
+            {
+                var environment = GetEnvironment(context, typeof(T));
+
+                Optimize optimizer = context.MkOptimize();
+
+                AssertConstraints<T>(context, optimizer, environment);
+
+                var exp = Visit(context, environment, lambda.Body, lambda.Parameters[0]);
+
+                switch (direction)
+                {
+                    case Optimization.Maximize:
+                        optimizer.MkMaximize(exp);
+                        break;
+                    case Optimization.Minimize:
+                        optimizer.MkMinimize(exp);
+                        break;
+                }
+
+                var sw = Stopwatch.StartNew();
+                
+                Status status = optimizer.Check();
+                
+                sw.Stop();
+
+                this.context.LogWriteLine($"Time to solution: {sw.Elapsed.TotalMilliseconds} ms");
+
+                if (status != Status.SATISFIABLE)
+                {
+                    return default;
+                }
+
+                return GetSolution<T>(context, optimizer.Model, environment);
+            }
+        }
+
+        /// <summary>
         /// Asserts the theorem constraints on the Z3 context.
         /// </summary>
         /// <param name="context">Z3 context.</param>
         /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
         /// <typeparam name="T">Theorem environment type.</typeparam>
-        private void AssertConstraints<T>(Context context, Solver solver, Environment environment)
+        private void AssertConstraints<T>(Context context, Z3Object approach, Environment environment)
         {
             var constraints = this.constraints;
 
@@ -142,7 +187,17 @@
             {
                 BoolExpr c = (BoolExpr)Visit(context, environment, constraint.Body, constraint.Parameters[0]);
 
-                solver.Assert(c);
+                if (approach is Solver)
+                {
+                    var solver = (Solver)approach;
+                    solver.Assert(c);
+                }
+
+                if (approach is Optimize)
+                {
+                    var optimize = (Optimize)approach;
+                    optimize.Assert(c);
+                }
 
                 this.context.LogWriteLine(c.ToString());
             }

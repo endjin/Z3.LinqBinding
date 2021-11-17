@@ -40,6 +40,15 @@
         }
 
         /// <summary>
+        /// Solves the theorem.
+        /// </summary>
+        /// <returns>Environment type instance with properties set to theorem-satisfying values.</returns>
+        public T Optimize(Optimization direction, Expression<Func<T, int>> lambda)
+        {
+            return base.Optimize<T>(direction, lambda);
+        }
+
+        /// <summary>
         /// Where query operator, used to add constraints to the theorem.
         /// </summary>
         /// <param name="constraint">Theorem constraint expression.</param>

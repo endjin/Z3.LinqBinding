@@ -50,7 +50,7 @@
             var sb = new StringBuilder();
             for (int i = 0; i < Cannibals.Length; i++)
             {
-                sb.AppendLine($"{i + 1} - (({Missionaries[i]}M, {Cannibals[i]}C, {1 - i % 2}), ({(i % 2)}, {NbMissionaries - Missionaries[i]}M, {NbMissionaries - Cannibals[i]}C))");
+                sb.AppendLine($"{i + 1} - (({Missionaries[i]}M, {Cannibals[i]}C, {1 - i % 2}), ({i % 2}, {NbMissionaries - Missionaries[i]}M, {NbMissionaries - Cannibals[i]}C))");
             }
 
             return sb.ToString();
