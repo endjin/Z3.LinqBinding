@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
@@ -8,6 +8,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="MiaPlaza.ExpressionUtils" Version="1.2.0" />
     <PackageReference Include="Microsoft.Z3" Version="4.8.12" />
   </ItemGroup>
 

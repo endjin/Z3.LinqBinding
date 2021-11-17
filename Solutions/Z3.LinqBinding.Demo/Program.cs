@@ -1,29 +1,42 @@
 ﻿namespace Z3.LinqBindingDemo
 {
     using System;
+    using System.Diagnostics;
 
     using Z3.LinqBinding;
     using Z3.LinqBinding.Sudoku;
 
-    // This doesn't work because they have special handling for constructing ordinary (albeit private) properties,
-    // and also for anonymous types, but they have no support for the standard contstructor-based init idiom
-    // that records use.
-    //    public record RTheorem<T1, T2>(T1 X, T2 Y);
-    // But if the record type offers a default ctor, it's happy.
-    public record RTheorem<T1, T2>
-    {
-        public T1 X { get; init; } = default!;
-        public T2 Y { get; init; } = default!;
-    }
-
     public static class Program
     {
+        private static Stopwatch stopwatch = Stopwatch.StartNew();
+
         private static void Main(string[] args)
         {
+            // Solving Canibals & Missionaires
+
+            using (var ctx = new Z3Context())
+            {
+                // ctx.Log = Console.Out; // see internal logging
+
+                var can = new MissionariesAndCannibals { NbMissionaries = 3, SizeBoat = 2, Length = 50 };
+
+                var theorum = can.Create(ctx);
+
+                var startTime = stopwatch.Elapsed;
+
+                var result = theorum.Solve();
+
+                var endTime = stopwatch.Elapsed;
+
+                Console.WriteLine(result);
+                Console.WriteLine();
+                Console.WriteLine($"Time to solve: {endTime - startTime}");
+            }
+
             // Basic Usage
             using (var ctx = new Z3Context())
             {
-                ctx.Log = Console.Out; // see internal logging
+                // ctx.Log = Console.Out; // see internal logging
 
                 var theorem = from t in ctx.NewTheorem(new { x = default(bool), y = default(bool) })
                               where t.x ^ t.y
@@ -32,27 +45,27 @@
                 var result = theorem.Solve();
                 Console.WriteLine(result);
             }
-            
+
             // One of Bart's examples from TechEd Europe 2012
             using (var ctx = new Z3Context())
             {
-                ctx.Log = Console.Out;
+                // ctx.Log = Console.Out;
 
-                var theorem = from t in ctx.NewTheorem<Symbols<int,int,int>>()
-                              where t.X1 - t.X2 >= 1 
-                              where t.X1 - t.X2 <= 3 
-                              where t.X1 == (2 * t.X3) + t.X2 
+                var theorem = from t in ctx.NewTheorem<Symbols<int, int, int>>()
+                              where t.X1 - t.X2 >= 1
+                              where t.X1 - t.X2 <= 3
+                              where t.X1 == (2 * t.X3) + t.X2
                               select t;
-                
+
                 var result = theorem.Solve();
-                                
+
                 Console.WriteLine(result);
             }
 
             // One of Bart's examples from TechEd Europe 2012 using ValueTuples
             using (var ctx = new Z3Context())
             {
-                ctx.Log = Console.Out;
+                // ctx.Log = Console.Out;
 
                 var theorem = from t in ctx.NewTheorem<(int x, int y, int z)>()
                               where t.x - t.y >= 1
@@ -66,35 +79,35 @@
             }
 
             // Bart's Oil Barrel example
-            using (var ctx = new Z3Context()) 
+           /* using (var ctx = new Z3Context())
             {
                 ctx.Log = Console.Out;
 
-                var theorem = from t in ctx.NewTheorem( new { vz = default(double), sa = default(double) })
-                where 0.3 * t.sa + 
-                      0.4 * t.vz > -2000 && 
-                      0.4 * t.sa + 
-                      0.2 * t.vz >= 1500 && 
-                      0.2 * t.sa + 
-                      0.3 * t.vz >+ 500
-                where 0 <= t.sa && 
-                      t.sa <= 9000 && 
-                      0 <= t.vz && 
-                      t.vz <= 6000
-                //orderby 20 * t.sa + 15 * t.vz
-                select t;
+                var theorem = from t in ctx.NewTheorem(new { vz = default(double), sa = default(double) })
+                              where 0.3 * t.sa +
+                                    0.4 * t.vz > -2000 &&
+                                    0.4 * t.sa +
+                                    0.2 * t.vz >= 1500 &&
+                                    0.2 * t.sa +
+                                    0.3 * t.vz > +500
+                              where 0 <= t.sa &&
+                                    t.sa <= 9000 &&
+                                    0 <= t.vz &&
+                                    t.vz <= 6000
+                              //orderby 20 * t.sa + 15 * t.vz
+                              select t;
 
                 var result = theorem.Solve();
 
                 //{ vz = 0, sa = 422212465065984 }
 
                 Console.WriteLine(result);
-            }
+            }*/
 
             // Example using ValueTuples
             using (var ctx = new Z3Context())
             {
-                ctx.Log = Console.Out;
+                // ctx.Log = Console.Out;
 
                 var theorem = from t in ctx.NewTheorem<(bool x, bool y)>()
                               where t.x ^ t.y
@@ -107,7 +120,7 @@
 
             using (var ctx = new Z3Context())
             {
-                ctx.Log = Console.Out; // see internal logging
+                // ctx.Log = Console.Out; // see internal logging
 
                 var theorem = from t in ctx.NewTheorem(new RTheorem<bool, bool>())
                               where t.X ^ t.Y
@@ -120,7 +133,7 @@
             // Advanced Usage
             using (var ctx = new Z3Context())
             {
-                ctx.Log = Console.Out; // see internal logging
+                // ctx.Log = Console.Out; // see internal logging
 
                 var theorem = from t in ctx.NewTheorem<Symbols<int, int>>()
                               where t.X1 < t.X2 + 1
@@ -154,7 +167,7 @@
             // All samples
             using (var ctx = new Z3Context())
             {
-                ctx.Log = Console.Out; // see internal logging
+                // ctx.Log = Console.Out; // see internal logging
 
                 Print(from t in ctx.NewTheorem(new { x = default(bool) })
                       where t.x && !t.x
