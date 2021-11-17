@@ -1,8 +1,5 @@
 ﻿namespace Z3.LinqBinding
 {
-    using MiaPlaza.ExpressionUtils;
-    using MiaPlaza.ExpressionUtils.Evaluating;
-
     using Microsoft.Z3;
 
     using System.Collections;
@@ -123,15 +120,15 @@
 
                 AssertConstraints<T>(context, optimizer, environment);
 
-                var exp = Visit(context, environment, lambda.Body, lambda.Parameters[0]);
+                var expression = ExpressionVisitor.Visit(context, environment, lambda.Body, lambda.Parameters[0]);
 
                 switch (direction)
                 {
                     case Optimization.Maximize:
-                        optimizer.MkMaximize(exp);
+                        optimizer.MkMaximize(expression);
                         break;
                     case Optimization.Minimize:
-                        optimizer.MkMinimize(exp);
+                        optimizer.MkMinimize(expression);
                         break;
                 }
 
@@ -185,21 +182,21 @@
             // Visit, assert and log.
             foreach (var constraint in constraints)
             {
-                BoolExpr c = (BoolExpr)Visit(context, environment, constraint.Body, constraint.Parameters[0]);
+                BoolExpr expression = (BoolExpr)ExpressionVisitor.Visit(context, environment, constraint.Body, constraint.Parameters[0]);
 
                 if (approach is Solver)
                 {
                     var solver = (Solver)approach;
-                    solver.Assert(c);
+                    solver.Assert(expression);
                 }
 
                 if (approach is Optimize)
                 {
                     var optimize = (Optimize)approach;
-                    optimize.Assert(c);
+                    optimize.Assert(expression);
                 }
 
-                this.context.LogWriteLine(c.ToString());
+                this.context.LogWriteLine(expression.ToString());
             }
         }
 
@@ -368,20 +365,6 @@
             }
 
             return value;
-        }
-
-        private static Object EvalMember(MemberInfo member, object target)
-        {
-            switch (member.MemberType)
-            {
-                case MemberTypes.Property:
-                    return ((PropertyInfo)member).GetValue(target, null);
-                case MemberTypes.Field:
-                    return ((FieldInfo)member).GetValue(target);
-                default:
-                    //val = target = null;
-                    throw new NotSupportedException($"Unsupported constant {target} .");
-            }
         }
 
         private Environment GetEnvironment(Context context, Type targetType)
@@ -681,343 +664,6 @@
 
                 return result;
             }
-        }
-
-        /// <summary>
-        /// Main visitor method to translate the LINQ expression tree into a Z3 expression handle.
-        /// </summary>
-        /// <param name="context">Z3 context.</param>
-        /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
-        /// <param name="expression">LINQ expression tree node to be translated.</param>
-        /// <param name="param">Parameter used to express the constraint on.</param>
-        /// <returns>Z3 expression handle.</returns>
-        private Expr Visit(Context context, Environment environment, Expression expression, ParameterExpression param)
-        {
-            // Largely table-driven mechanism, providing constructor lambdas to generic Visit*
-            // methods, classified by type and arity.
-            switch (expression.NodeType)
-            {
-                case ExpressionType.And:
-                case ExpressionType.AndAlso:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkAnd((BoolExpr)a, (BoolExpr)b));
-
-                case ExpressionType.Or:
-                case ExpressionType.OrElse:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkOr((BoolExpr)a, (BoolExpr)b));
-
-                case ExpressionType.ExclusiveOr:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkXor((BoolExpr)a, (BoolExpr)b));
-
-                case ExpressionType.Not:
-                    return VisitUnary(context, environment, (UnaryExpression)expression, param, (ctx, a) => ctx.MkNot((BoolExpr)a));
-
-                case ExpressionType.Negate:
-                case ExpressionType.NegateChecked:
-                    return VisitUnary(context, environment, (UnaryExpression)expression, param, (ctx, a) => ctx.MkUnaryMinus((ArithExpr)a));
-
-                case ExpressionType.Add:
-                case ExpressionType.AddChecked:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkAdd((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.Subtract:
-                case ExpressionType.SubtractChecked:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkSub((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.Multiply:
-                case ExpressionType.MultiplyChecked:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkMul((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.Divide:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkDiv((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.Modulo:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkRem((IntExpr)a, (IntExpr)b));
-
-                case ExpressionType.LessThan:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkLt((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.LessThanOrEqual:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkLe((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.GreaterThan:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkGt((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.GreaterThanOrEqual:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkGe((ArithExpr)a, (ArithExpr)b));
-
-                case ExpressionType.Equal:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkEq(a, b));
-
-                case ExpressionType.NotEqual:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkNot(ctx.MkEq(a, b)));
-
-                case ExpressionType.MemberAccess:
-                    return VisitMember(context, environment, (MemberExpression)expression, param);
-
-                case ExpressionType.Constant:
-                    return VisitConstant(context, (ConstantExpression)expression);
-
-                case ExpressionType.Call:
-                    return VisitCall(context, environment, (MethodCallExpression)expression, param);
-                case ExpressionType.ArrayIndex:
-                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkSelect((ArrayExpr)a, b));
-                case ExpressionType.Index:
-                    return VisitIndex(context, environment, (IndexExpression)expression, param, (ctx, a, b) => ctx.MkSelect((ArrayExpr)a, b));
-                default:
-                    throw new NotSupportedException("Unsupported expression node type encountered: " + expression.NodeType);
-            }
-        }
- 
-        /// <summary>
-        /// Visitor method to translate a binary expression.
-        /// </summary>
-        /// <param name="context">Z3 context.</param>
-        /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
-        /// <param name="expression">Binary expression.</param>
-        /// <param name="ctor">Constructor to combine recursive visitor results.</param>
-        /// <param name="param">Parameter used to express the constraint on.</param>
-        /// <returns>Z3 expression handle.</returns>
-        private Expr VisitBinary(Context context, Environment environment, BinaryExpression expression, ParameterExpression param, Func<Context, Expr, Expr, Expr> ctor)
-        {
-            return ctor(context, Visit(context, environment, expression.Left, param), Visit(context, environment, expression.Right, param));
-        }
-
-        /// <summary>
-        /// Visitor method to translate a method call expression.
-        /// </summary>
-        /// <param name="context">Z3 context.</param>
-        /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
-        /// <param name="call">Method call expression.</param>
-        /// <param name="param">Parameter used to express the constraint on.</param>
-        /// <returns>Z3 expression handle.</returns>
-        private Expr VisitCall(Context context, Environment environment, MethodCallExpression call, ParameterExpression param)
-        {
-            var method = call.Method;
-
-            //
-            // Does the method have a rewriter attribute applied?
-            //
-            var rewriterAttr = method.GetCustomAttributes<TheoremPredicateRewriterAttribute>(false).SingleOrDefault();
-
-            if (rewriterAttr != null)
-            {
-                // Make sure the specified rewriter type implements the ITheoremPredicateRewriter.
-                var rewriterType = rewriterAttr.RewriterType;
-
-                if (!typeof(ITheoremPredicateRewriter).IsAssignableFrom(rewriterType))
-                {
-                    throw new InvalidOperationException("Invalid predicate rewriter type definition. Did you implement ITheoremPredicateRewriter?");
-                }
-
-                // Assume a parameterless public constructor to new up the rewriter.
-                var rewriter = (ITheoremPredicateRewriter)Activator.CreateInstance(rewriterType)!;
-
-                // Make sure we don't get stuck when the rewriter just returned its input. Valid
-                // rewriters should satisfy progress guarantees.
-                var result = rewriter.Rewrite(call);
-
-                if (result == call)
-                {
-                    throw new InvalidOperationException("The expression tree rewriter of type " + rewriterType.Name + " did not perform any rewrite. Aborting compilation to avoid infinite looping.");
-                }
-
-                // Visit the rewritten expression.
-                return Visit(context, environment, result, param);
-            }
-
-            // Filter for known Z3 operators.
-            if (method.IsGenericMethod && method.GetGenericMethodDefinition() == typeof(Z3Methods).GetMethod("Distinct"))
-            {
-                // We know the signature of the Distinct method call. Its argument is a params
-                // array, hence we expect a NewArrayExpression.
-                IEnumerable<Expression> distinctExps = null;
-
-                var itemsExpression = call.Arguments[0];
-                if (itemsExpression is MethodCallExpression mExp)
-                {
-                    if (mExp.Method.IsGenericMethod && mExp.Method.GetGenericMethodDefinition() == typeof(Enumerable)
-                            .GetMethods().First(m => m.Name == nameof(Enumerable.ToArray)))
-                    {
-                        var callerToArrayExp = mExp.Arguments[0];
-                        if (callerToArrayExp is MethodCallExpression callerToArrayMethodExp)
-                        {
-                            if (callerToArrayMethodExp.Method.IsGenericMethod && callerToArrayMethodExp.Method.GetGenericMethodDefinition() == typeof(Enumerable).GetMethods().First(m => m.Name == nameof(Enumerable.Select) && m.GetParameters().Length == 2))
-                            {
-                                var caller = (ICollection)ExpressionInterpreter.Instance.Interpret(callerToArrayMethodExp.Arguments[0]);
-                                //var arg = PartialEvaluator.PartialEval(call.Arguments[1], ExpressionInterpreter.Instance) as LambdaExpression;
-                                var arg = callerToArrayMethodExp.Arguments[1] as LambdaExpression;
-                                var subExps = new List<Expression>(caller.Count);
-                                foreach (var item in caller)
-                                {
-                                    var substitutedExpression = ParameterSubstituter.SubstituteParameter(arg, Expression.Constant(item));
-                                    var newlyFlattened = PartialEvaluator.PartialEval(substitutedExpression, ExpressionInterpreter.Instance);
-                                    subExps.Add(newlyFlattened);
-                                }
-
-                                distinctExps = subExps;
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    if (itemsExpression is NewArrayExpression arrExp)
-                    {
-                        distinctExps = arrExp.Expressions;
-                    }
-                }
-
-                if (distinctExps == null)
-                {
-                    throw new NotSupportedException("unsuported method call:" + method.ToString() + "with sub expression " + call.Arguments[0].ToString());
-                    //Debugger.Break();
-                    //IEnumerable<Expression> result =  Expression.Lambda(call.Arguments[0]).Compile();
-                    //arr = Expression.NewArrayInit(valType, result);
-                }
-
-                var args = from arg in distinctExps select Visit(context, environment, arg, param);
-                return context.MkDistinct(args.ToArray());
-            }
-
-            if (method.Name.StartsWith("get_"))
-            {
-                // Assuming it's an indexed property
-                string prop = method.Name.Substring(4);
-                var propinfo = method.DeclaringType.GetProperty(prop);
-                var target = call.Object;
-                var args = call.Arguments;
-                var indexer = Expression.MakeIndex(target, propinfo, args);
-
-                return Visit(context, environment, indexer, param);
-            }
-
-            throw new NotSupportedException("Unknown method call:" + method.ToString());
-        }
-
-        /// <summary>
-        /// Visitor method to translate a constant expression.
-        /// </summary>
-        /// <param name="context">Z3 context.</param>
-        /// <param name="constant">Constant expression.</param>
-        /// <returns>Z3 expression handle.</returns>
-        private static Expr VisitConstant(Context context, ConstantExpression constant)
-        {
-           return VisitConstantValue(context, constant.Value);
-        }
-
-        private static Expr VisitConstantValue(Context context, Object val)
-        {
-            switch (Type.GetTypeCode(val.GetType()))
-            {
-                case TypeCode.Int16:
-                case TypeCode.Int32:
-                case TypeCode.Int64:
-                    return context.MkInt(Convert.ToInt64(val));
-                case TypeCode.Boolean:
-                    return context.MkBool((bool)val);
-                case TypeCode.Single:
-                case TypeCode.Double:
-                case TypeCode.Decimal:
-                    return context.MkReal(val.ToString());
-                case TypeCode.DateTime:
-                    return context.MkInt(((DateTime)val).ToFileTimeUtc());
-                case TypeCode.String:
-                    return context.MkString(val.ToString());
-                default:
-                    throw new NotSupportedException($"Unsupported constant {val}");
-            }
-        }
-
-        private Expr VisitIndex(Context context, Environment environment, IndexExpression expression, ParameterExpression param, Func<Context, Expr, Expr[], Expr> ctor)
-        {
-            var args = expression.Arguments.Select(argExp => Visit(context, environment, argExp, param)).ToArray();
-            //return ctor(context, Visit(context, environment, expression.Object, param), Visit(context, environment, expression.Arguments[0], param));
-            return ctor(context, Visit(context, environment, expression.Object, param), args);
-        }
-
-        /// <summary>
-        /// Visitor method to translate a member expression.
-        /// </summary>
-        /// <param name="context">the Z3 context to manipulate</param>
-        /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
-        /// <param name="member">Member expression.</param>
-        /// <param name="param">Parameter used to express the constraint on.</param>
-        /// <returns>Z3 expression handle.</returns>
-        private static Expr VisitMember(Context context, Environment environment, MemberExpression member, ParameterExpression param)
-        {
-            // E.g. Symbols l = ...;
-            //      theorem.Where(s => l.X1)
-            //                         ^^
-            var hierarchy = new List<MemberExpression>();
-            var mExp = member;
-            hierarchy.Add(mExp);
-
-            while (mExp.Expression is MemberExpression parent)
-            {
-                mExp = parent;
-                hierarchy.Add(parent);
-            }
-
-            hierarchy.Reverse();
-
-            var topMember = hierarchy.First();
-
-            if (topMember.Expression != param)
-            {
-                if ((topMember.Expression is ConstantExpression expression))
-                {
-                    // We only ever get here if SimplifyLambda is set to false, otherwise partial evaluation does it earlier
-                    var target = expression.Value;
-                    var hierarchyIdx = 0;
-                    object val = target;
-
-                    while (hierarchyIdx < hierarchy.Count)
-                    {
-                        val = EvalMember(hierarchy[hierarchyIdx].Member, val);
-                        hierarchyIdx++;
-                    }
-                    if (val != null)
-                    {
-                        return VisitConstantValue(context, val);
-                    }
-                    throw new NotSupportedException($"Could not reduce expression {topMember.Expression}");
-                }
-                else
-                {
-                   //Debugger.Break(); 
-                }
-            }
-
-            // Only members we allow currently are direct accesses to the theorem's variables
-            // in the environment type. So we just try to find the mapping from the environment
-            // bindings table.
-            //PropertyInfo property;
-            Environment subEnv = environment;
-
-            foreach (var memberExpression in hierarchy)
-            {
-                if (!((memberExpression.Member is PropertyInfo property && subEnv.Properties.TryGetValue(property, out subEnv)) ||
-                  (memberExpression.Member is FieldInfo field && subEnv.Properties.TryGetValue(field, out subEnv))))
-                {
-                    throw new NotSupportedException("Unknown parameter encountered: " + member.Member.Name + ".");
-                }
-            }
-
-            return subEnv.Expr;
-        }
-
-        /// <summary>
-        /// Visitor method to translate a unary expression.
-        /// </summary>
-        /// <param name="context">Z3 context.</param>
-        /// <param name="environment">Environment with bindings of theorem variables to Z3 handles.</param>
-        /// <param name="expression">Unary expression.</param>
-        /// <param name="ctor">Constructor to combine recursive visitor results.</param>
-        /// <param name="param">Parameter used to express the constraint on.</param>
-        /// <returns>Z3 expression handle.</returns>
-        private Expr VisitUnary(Context context, Environment environment, UnaryExpression expression, ParameterExpression param, Func<Context, Expr, Expr> ctor)
-        {
-            return ctor(context, Visit(context, environment, expression.Operand, param));
         }
     }
 }

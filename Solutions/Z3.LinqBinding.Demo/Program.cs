@@ -12,7 +12,8 @@
 
         private static void Main(string[] args)
         {
-            // Solving Canibals & Missionaires
+            Console.WriteLine("==== Missionaries & Cannibals ====");
+
             using (var ctx = new Z3Context())
             {
                 // ctx.Log = Console.Out; // see internal logging
@@ -31,21 +32,21 @@
                 MissionariesAndCannibals? result = theorem.Solve();
                 sw.Stop();
 
+                Console.WriteLine(result);
                 Console.WriteLine($"Time to solution: {sw.Elapsed.TotalMilliseconds} ms");
+                Console.WriteLine();
 
                 sw = Stopwatch.StartNew();
                 var minimal = theorem.Optimize(Optimization.Minimize, t => t.Length);
                 sw.Stop();
 
-                Console.WriteLine($"Time to optimised solution: {sw.Elapsed.TotalMilliseconds} ms");
-
-                Console.WriteLine(result);
-                Console.WriteLine();
                 Console.WriteLine(minimal);
+                Console.WriteLine($"Time to optimised solution: {sw.Elapsed.TotalMilliseconds} ms");
                 Console.WriteLine();
             }
 
-            // Basic Usage
+            Console.WriteLine("==== t.x ^ t.y using Anonymous Types ====");
+
             using (var ctx = new Z3Context())
             {
                 // ctx.Log = Console.Out; // see internal logging
@@ -55,10 +56,41 @@
                               select t;
 
                 var result = theorem.Solve();
+
                 Console.WriteLine(result);
             }
 
-            // One of Bart's examples from TechEd Europe 2012
+            Console.WriteLine("==== t.x ^ t.y using ValueTuples ====");
+
+            using (var ctx = new Z3Context())
+            {
+                // ctx.Log = Console.Out;
+
+                var theorem = from t in ctx.NewTheorem<(bool x, bool y)>()
+                              where t.x ^ t.y
+                              select t;
+
+                var result = theorem.Solve();
+
+                Console.WriteLine(result);
+            }
+
+            Console.WriteLine("==== t.x ^ t.y using Custom Theorem ====");
+
+            using (var ctx = new Z3Context())
+            {
+                // ctx.Log = Console.Out; // see internal logging
+
+                var theorem = from t in ctx.NewTheorem(new RTheorem<bool, bool>())
+                              where t.X ^ t.Y
+                              select t;
+
+                var result = theorem.Solve();
+                Console.WriteLine(result);
+            }
+
+            Console.WriteLine("==== Bart's example from TechEd Europe 2012 ====");
+            
             using (var ctx = new Z3Context())
             {
                 // ctx.Log = Console.Out;
@@ -74,7 +106,8 @@
                 Console.WriteLine(result);
             }
 
-            // One of Bart's examples from TechEd Europe 2012 using ValueTuples
+            Console.WriteLine("==== Bart's example from TechEd Europe 2012 using ValueTuples ====");
+            
             using (var ctx = new Z3Context())
             {
                 // ctx.Log = Console.Out;
@@ -90,59 +123,8 @@
                 Console.WriteLine(result);
             }
 
-            // Bart's Oil Barrel example
-           /* using (var ctx = new Z3Context())
-            {
-                ctx.Log = Console.Out;
+            Console.WriteLine("====  Example using Symbols<T1, T2> ====");
 
-                var theorem = from t in ctx.NewTheorem(new { vz = default(double), sa = default(double) })
-                              where 0.3 * t.sa +
-                                    0.4 * t.vz > -2000 &&
-                                    0.4 * t.sa +
-                                    0.2 * t.vz >= 1500 &&
-                                    0.2 * t.sa +
-                                    0.3 * t.vz > +500
-                              where 0 <= t.sa &&
-                                    t.sa <= 9000 &&
-                                    0 <= t.vz &&
-                                    t.vz <= 6000
-                              //orderby 20 * t.sa + 15 * t.vz
-                              select t;
-
-                var result = theorem.Solve();
-
-                //{ vz = 0, sa = 422212465065984 }
-
-                Console.WriteLine(result);
-            }*/
-
-            // Example using ValueTuples
-            using (var ctx = new Z3Context())
-            {
-                // ctx.Log = Console.Out;
-
-                var theorem = from t in ctx.NewTheorem<(bool x, bool y)>()
-                              where t.x ^ t.y
-                              select t;
-
-                var result = theorem.Solve();
-
-                Console.WriteLine(result);
-            }
-
-            using (var ctx = new Z3Context())
-            {
-                // ctx.Log = Console.Out; // see internal logging
-
-                var theorem = from t in ctx.NewTheorem(new RTheorem<bool, bool>())
-                              where t.X ^ t.Y
-                              select t;
-
-                var result = theorem.Solve();
-                Console.WriteLine(result);
-            }
-
-            // Advanced Usage
             using (var ctx = new Z3Context())
             {
                 // ctx.Log = Console.Out; // see internal logging
@@ -154,10 +136,12 @@
                               select t;
 
                 var result = theorem.Solve();
+
                 Console.WriteLine(result);
             }
 
-            // Sudoku Extension Usage (Z3.LinqBinding.Sudoku)
+            Console.WriteLine("====  SudokuTheorem Example ====");
+
             using (var ctx = new Z3Context())
             {
                 var theorem = from t in SudokuTheorem.Create(ctx)
@@ -173,8 +157,11 @@
                               select t;
 
                 var result = theorem.Solve();
+
                 Console.WriteLine(result);
             }
+
+            Console.WriteLine("====  SudokuTheorem Example from https://sandiway.arizona.edu/sudoku/examples.html ====");
 
             using (var ctx = new Z3Context())
             {
@@ -195,7 +182,35 @@
                 Console.WriteLine(result);
             }
 
+            /* 
+            // Bart's Oil Barrel example
+            using (var ctx = new Z3Context())
+            {
+                ctx.Log = Console.Out;
+
+                var theorem = from t in ctx.NewTheorem(new { vz = default(double), sa = default(double) })
+                                where 0.3 * t.sa +
+                                    0.4 * t.vz > -2000 &&
+                                    0.4 * t.sa +
+                                    0.2 * t.vz >= 1500 &&
+                                    0.2 * t.sa +
+                                    0.3 * t.vz > +500
+                                where 0 <= t.sa &&
+                                    t.sa <= 9000 &&
+                                    0 <= t.vz &&
+                                    t.vz <= 6000
+                                //orderby 20 * t.sa + 15 * t.vz
+                                select t;
+
+                var result = theorem.Solve();
+
+                //{ vz = 0, sa = 422212465065984 }
+
+                Console.WriteLine(result);
+            }
+            
             // All samples
+
             using (var ctx = new Z3Context())
             {
                 // ctx.Log = Console.Out; // see internal logging
@@ -242,7 +257,7 @@
                       where t.Cell84 == 8 && t.Cell87 == 3
                       where t.Cell92 == 4 && t.Cell94 == 9 && t.Cell97 == 2
                       select t);
-            }
+            }*/
 
             Console.ReadKey();
         }
