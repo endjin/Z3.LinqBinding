@@ -12,7 +12,7 @@
 
         private static void Main(string[] args)
         {
-            Console.WriteLine("==== Missionaries & Cannibals ====");
+            Console.WriteLine("==== Missionaries & Cannibals using Solve() ====");
 
             using (var ctx = new Z3Context())
             {
@@ -32,6 +32,8 @@
                 Console.WriteLine(result);
                 Console.WriteLine($"Time to solution: {sw.Elapsed.TotalMilliseconds} ms");
                 Console.WriteLine();
+
+                Console.WriteLine("==== Missionaries & Cannibals using Optimize() ====");
 
                 sw = Stopwatch.StartNew();
                 var minimal = theorem.Optimize(Optimization.Minimize, t => t.Length);
@@ -189,7 +191,7 @@
                               where 0.2 * t.sa + 0.3 * t.vz >= 500
                               where 0 <= t.sa && t.sa <= 9000
                               where 0 <= t.vz && t.vz <= 6000
-                              orderby 20 * t.sa + 15 * t.vz // we need to turn order by into goals
+                              //orderby 20 * t.sa + 15 * t.vz // we need to turn order by into goals
                               select t;
 
                 var result = theorem.Solve();
