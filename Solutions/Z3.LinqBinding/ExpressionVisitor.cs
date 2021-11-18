@@ -9,7 +9,6 @@
 
     using Microsoft.Z3;
 
-
     public static class ExpressionVisitor
     {
         /// <summary>
@@ -22,8 +21,7 @@
         /// <returns>Z3 expression handle.</returns>
         public static Expr Visit(Context context, Environment environment, Expression expression, ParameterExpression param)
         {
-            // Largely table-driven mechanism, providing constructor lambdas to generic Visit*
-            // methods, classified by type and arity.
+            // Largely table-driven mechanism, providing constructor lambdas to generic Visit* methods, classified by type and arity.
             switch (expression.NodeType)
             {
                 case ExpressionType.And:
@@ -88,10 +86,13 @@
 
                 case ExpressionType.Call:
                     return VisitCall(context, environment, (MethodCallExpression)expression, param);
+                
                 case ExpressionType.ArrayIndex:
                     return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkSelect((ArrayExpr)a, b));
+                
                 case ExpressionType.Index:
                     return VisitIndex(context, environment, (IndexExpression)expression, param, (ctx, a, b) => ctx.MkSelect((ArrayExpr)a, b));
+                
                 default:
                     throw new NotSupportedException("Unsupported expression node type encountered: " + expression.NodeType);
             }
@@ -123,9 +124,7 @@
         {
             var method = call.Method;
 
-            //
             // Does the method have a rewriter attribute applied?
-            //
             var rewriterAttr = method.GetCustomAttributes<TheoremPredicateRewriterAttribute>(false).SingleOrDefault();
 
             if (rewriterAttr != null)
@@ -173,9 +172,9 @@
                             if (callerToArrayMethodExp.Method.IsGenericMethod && callerToArrayMethodExp.Method.GetGenericMethodDefinition() == typeof(Enumerable).GetMethods().First(m => m.Name == nameof(Enumerable.Select) && m.GetParameters().Length == 2))
                             {
                                 var caller = (ICollection)ExpressionInterpreter.Instance.Interpret(callerToArrayMethodExp.Arguments[0]);
-                                //var arg = PartialEvaluator.PartialEval(call.Arguments[1], ExpressionInterpreter.Instance) as LambdaExpression;
                                 var arg = callerToArrayMethodExp.Arguments[1] as LambdaExpression;
                                 var subExps = new List<Expression>(caller.Count);
+                                
                                 foreach (var item in caller)
                                 {
                                     var substitutedExpression = ParameterSubstituter.SubstituteParameter(arg, Expression.Constant(item));
@@ -199,9 +198,6 @@
                 if (distinctExps == null)
                 {
                     throw new NotSupportedException("unsuported method call:" + method.ToString() + "with sub expression " + call.Arguments[0].ToString());
-                    //Debugger.Break();
-                    //IEnumerable<Expression> result =  Expression.Lambda(call.Arguments[0]).Compile();
-                    //arr = Expression.NewArrayInit(valType, result);
                 }
 
                 IEnumerable<Expr> args = from Expression arg in distinctExps 
@@ -213,7 +209,7 @@
             {
                 // Assuming it's an indexed property
                 string prop = method.Name.Substring(4);
-                var propinfo = method.DeclaringType.GetProperty(prop);
+                var propinfo = method.DeclaringType?.GetProperty(prop);
                 var target = call.Object;
                 var args = call.Arguments;
                 var indexer = Expression.MakeIndex(target, propinfo, args);
@@ -235,7 +231,7 @@
             return VisitConstantValue(context, constant.Value);
         }
 
-        private static Expr VisitConstantValue(Context context, Object val)
+        private static Expr VisitConstantValue(Context context, object val)
         {
             switch (Type.GetTypeCode(val.GetType()))
             {
@@ -321,7 +317,6 @@
             // Only members we allow currently are direct accesses to the theorem's variables
             // in the environment type. So we just try to find the mapping from the environment
             // bindings table.
-            //PropertyInfo property;
             Environment subEnv = environment;
 
             foreach (var memberExpression in hierarchy)
@@ -355,7 +350,7 @@
             switch (member.MemberType)
             {
                 case MemberTypes.Property:
-                    return ((PropertyInfo)member).GetValue(target, null);
+                    return ((PropertyInfo)member).GetValue(target);
                 case MemberTypes.Field:
                     return ((FieldInfo)member).GetValue(target);
                 default:

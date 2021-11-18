@@ -1,6 +1,5 @@
 ﻿namespace Z3.LinqBinding
 {
-
     using Microsoft.Z3;
 
     using System.Reflection;

@@ -182,6 +182,24 @@
                 Console.WriteLine(result);
             }
 
+            using (var ctx = new Z3Context())
+            {
+                // ctx.Log = Console.Out;
+
+                var theorem = from t in ctx.NewTheorem<(double vz, double sa)>()
+                              where 0.3 * t.sa + 0.4 * t.vz >= 1900
+                              where 0.4 * t.sa + 0.2 * t.vz >= 1500
+                              where 0.2 * t.sa + 0.3 * t.vz >= 500
+                              where 0 <= t.sa && t.sa <= 9000
+                              where 0 <= t.vz && t.vz <= 6000
+                              orderby 20 * t.sa + 15 * t.vz // we need to turn order by into goals
+                              select t;
+
+                var result = theorem.Solve();
+
+                Console.WriteLine(result);
+            }
+
             /* 
             // Bart's Oil Barrel example
             using (var ctx = new Z3Context())
