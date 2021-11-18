@@ -18,14 +18,11 @@
             {
                 // ctx.Log = Console.Out; // see internal logging
 
-                var can = new MissionariesAndCannibals 
-                { 
-                    NbMissionaries = 3, 
-                    SizeBoat = 2, 
-                    Length = 50 
-                };
-
-                var theorem = can.Create(ctx);
+                var theorem =
+                    from t in  MissionariesAndCannibals.Create(ctx, 50)
+                    where t.MissionaryAndCannibalCount == 3
+                    where t.SizeBoat == 2
+                    select t;
 
                 var sw = Stopwatch.StartNew();
 

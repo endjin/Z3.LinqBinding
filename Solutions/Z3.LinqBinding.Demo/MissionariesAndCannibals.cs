@@ -10,36 +10,70 @@
     /// (if they were, the cannibals would eat the missionaries). The boat cannot cross the river by itself with no people on board.
     /// The class contains the state representation for the problem and embeds the rules into a Z3 solving theorem
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Unlike, say, Sudoku, where the end state is the solution, here the end state is known up front: it's the state
+    /// where everyone is on the far bank. The information we want Z3 to generate is the series of steps that get from
+    /// the start state to that known end state.
+    /// there,
+    /// </para>
+    /// </remarks>
     public class MissionariesAndCannibals
     {
+        /// <summary>
+        /// Gets or sets the number of missionaries and cannibals.
+        /// </summary>
+        /// <remarks>
+        /// <para>3 in the original problem.</para>
+        /// <para>This should be specified with a 'where' constraint.</para>
+        /// </remarks>
+        public int MissionaryAndCannibalCount { get; set; }
 
-        // The number of Missionaries and cannibals (3 in the original problem)
-        public int NbMissionaries { get; set; } = 3;
+        /// <summary>
+        /// The maximum total number of missionaries and cannibals that the boat can hold.
+        /// </summary>
+        /// <remarks>
+        /// <para>2 in the original problem.</para>
+        /// <para>This should be specified with a 'where' constraint.</para>
+        /// </remarks>
+        public int SizeBoat { get; set; }
 
-        // The size of the boat (2 in the original problem)
-        public int SizeBoat { get; set; } = 2;
-
-        // length of the solution
-        private int length;
-
-        //Property to access the length in Z3
+        /// <summary>
+        /// Gets or sets the number of steps in the solution.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// When using this theorem type, this is effectively an output - Z3 tells us how many
+        /// steps its solution has by setting this. To get the best solution, we can ask Z3
+        /// to optimize for minimizing this property.
+        /// </para>
+        /// <para>
+        /// Internally, we also use this to express the constraints for the final state, e.g.
+        /// <c>t.Missionares[t.Length - 1] == 0</c>.
+        /// </para>
+        /// </remarks>
         public int Length
         {
-            get => this.length;
+            get => this.Missionaries.Length;
             set
             {
-                this.length = value;
                 // When length is computed by Z3, we initialize arrays to retrieve values
                 Missionaries = new int[value];
                 Cannibals = new int[value];
             }
         }
 
-        // An array that contains the number of Missionaries on the starting bank at each step
-        public int[] Missionaries { get; set; }
+        /// <summary>
+        /// Gets or sets an array that contains the number of Missionaries on the starting bank
+        /// at each step.
+        /// </summary>
+        public int[] Missionaries { get; set; } = default!;
 
-        // An array that contains the number of Cannibals on the starting bank at each step
-        public int[] Cannibals { get; set; }
+        /// <summary>
+        /// Gets or sets an array that contains the number of Cannibals on the starting bank
+        /// at each step.
+        /// </summary>
+        public int[] Cannibals { get; set; } = default!;
 
         /// <summary>
         /// An easy to read representation of the proposed solution
@@ -50,7 +84,7 @@
             var sb = new StringBuilder();
             for (int i = 0; i < Cannibals.Length; i++)
             {
-                sb.AppendLine($"{i + 1} - (({Missionaries[i]}M, {Cannibals[i]}C, {1 - i % 2}), ({i % 2}, {NbMissionaries - Missionaries[i]}M, {NbMissionaries - Cannibals[i]}C))");
+                sb.AppendLine($"{i + 1} - (({Missionaries[i]}M, {Cannibals[i]}C, {1 - i % 2}), ({i % 2}, {MissionaryAndCannibalCount - Missionaries[i]}M, {MissionaryAndCannibalCount - Cannibals[i]}C))");
             }
 
             return sb.ToString();
@@ -60,30 +94,24 @@
         /// Creates a theorem with the rules of the game, and the starting parameters initialized from this instance
         /// </summary>
         /// <param name="context">A wrapping Z3 context used to interpret c# Lambda into Z3 constraints</param>
+        /// <param name="maxLength">The maximum number of steps explore.</param>
         /// <returns>A typed theorem to be solved</returns>
-        public Theorem<MissionariesAndCannibals> Create(Z3Context context)
+        public static Theorem<MissionariesAndCannibals> Create(Z3Context context, int maxLength)
         {
             var theorem = context.NewTheorem<MissionariesAndCannibals>();
             
-            // We start with global constraints, to be injected into the lambda expression
-            var sizeBoat = this.SizeBoat;
-            int nbMissionaries = this.NbMissionaries;
-            int maxlength = this.Length;
-
             // Initial state
-            theorem = theorem.Where(caM => caM.NbMissionaries == nbMissionaries);
-            theorem = theorem.Where(caM => caM.SizeBoat == sizeBoat);
-            theorem = theorem.Where(caM => caM.Missionaries[0] == caM.NbMissionaries && caM.Cannibals[0] == caM.NbMissionaries);
+            theorem = theorem.Where(caM => caM.Missionaries[0] == caM.MissionaryAndCannibalCount && caM.Cannibals[0] == caM.MissionaryAndCannibalCount);
 
             // Transition model: We filter each step according to legal moves
-            for (int iclosure = 0; iclosure < maxlength; iclosure++)
+            for (int iclosure = 0; iclosure < maxLength; iclosure++)
             {
                 var i = iclosure;
                 //The 2 banks cannot have more people than the initial population
                 theorem = theorem.Where(caM => caM.Cannibals[i] >= 0
-                                               && caM.Cannibals[i] <= caM.NbMissionaries
+                                               && caM.Cannibals[i] <= caM.MissionaryAndCannibalCount
                                                && caM.Missionaries[i] >= 0
-                                               && caM.Missionaries[i] <= caM.NbMissionaries);
+                                               && caM.Missionaries[i] <= caM.MissionaryAndCannibalCount);
                 if (i % 2 == 0)
                 {
                     // On even steps, the starting bank loses between 1 and SizeBoat people 
@@ -106,7 +134,7 @@
 
                 //Never less missionaries than cannibals on any bank
                 theorem = theorem.Where(caM => (caM.Missionaries[i] == 0 || (caM.Missionaries[i] >= caM.Cannibals[i]))
-                                         && (caM.Missionaries[i] == caM.NbMissionaries || ((caM.NbMissionaries - caM.Missionaries[i]) >= (caM.NbMissionaries - caM.Cannibals[i]))));
+                                         && (caM.Missionaries[i] == caM.MissionaryAndCannibalCount || ((caM.MissionaryAndCannibalCount - caM.Missionaries[i]) >= (caM.MissionaryAndCannibalCount - caM.Cannibals[i]))));
 
             }
 
@@ -114,7 +142,7 @@
             // When finished, No more people on the starting bank
             theorem = theorem.Where(
               caM => caM.Length > 0
-                     && caM.Length < maxlength
+                     && caM.Length < maxLength
                      && caM.Missionaries[caM.Length - 1] == 0
                      && caM.Cannibals[caM.Length - 1] == 0
             );
