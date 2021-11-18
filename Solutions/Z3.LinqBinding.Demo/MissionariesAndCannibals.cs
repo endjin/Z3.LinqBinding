@@ -101,52 +101,51 @@
             var theorem = context.NewTheorem<MissionariesAndCannibals>();
             
             // Initial state
-            theorem = theorem.Where(caM => caM.Missionaries[0] == caM.MissionaryAndCannibalCount && caM.Cannibals[0] == caM.MissionaryAndCannibalCount);
+            theorem = theorem.Where(t => t.Missionaries[0] == t.MissionaryAndCannibalCount && t.Cannibals[0] == t.MissionaryAndCannibalCount);
 
             // Transition model: We filter each step according to legal moves
             for (int iclosure = 0; iclosure < maxLength; iclosure++)
             {
                 var i = iclosure;
                 //The 2 banks cannot have more people than the initial population
-                theorem = theorem.Where(caM => caM.Cannibals[i] >= 0
-                                               && caM.Cannibals[i] <= caM.MissionaryAndCannibalCount
-                                               && caM.Missionaries[i] >= 0
-                                               && caM.Missionaries[i] <= caM.MissionaryAndCannibalCount);
+                theorem = theorem.Where(t => t.Cannibals[i] >= 0
+                                               && t.Cannibals[i] <= t.MissionaryAndCannibalCount
+                                               && t.Missionaries[i] >= 0
+                                               && t.Missionaries[i] <= t.MissionaryAndCannibalCount);
                 if (i % 2 == 0)
                 {
                     // On even steps, the starting bank loses between 1 and SizeBoat people 
-                    theorem = theorem.Where(caM => caM.Cannibals[i + 1] <= caM.Cannibals[i]
-                                                   && caM.Missionaries[i + 1] <= caM.Missionaries[i]
-                                                   && caM.Cannibals[i + 1] + caM.Missionaries[i + 1] - caM.Cannibals[i] - caM.Missionaries[i] < 0
-                                                   && caM.Cannibals[i + 1] + caM.Missionaries[i + 1] - caM.Cannibals[i] - caM.Missionaries[i] >= -caM.SizeBoat);
+                    theorem = theorem.Where(t => t.Cannibals[i + 1] <= t.Cannibals[i]
+                                                   && t.Missionaries[i + 1] <= t.Missionaries[i]
+                                                   && t.Cannibals[i + 1] + t.Missionaries[i + 1] - t.Cannibals[i] - t.Missionaries[i] < 0
+                                                   && t.Cannibals[i + 1] + t.Missionaries[i + 1] - t.Cannibals[i] - t.Missionaries[i] >= -t.SizeBoat);
 
                 }
                 else
                 {
                     // On odd steps, the starting bank gains between 1 and SizeBoat people
-                    theorem = theorem.Where(caM =>
-                                              caM.Cannibals[i + 1] >= caM.Cannibals[i]
-                                              && caM.Missionaries[i + 1] >= caM.Missionaries[i]
-                                              && caM.Cannibals[i + 1] + caM.Missionaries[i + 1] - caM.Cannibals[i] - caM.Missionaries[i] > 0
-                                              && caM.Cannibals[i + 1] + caM.Missionaries[i + 1] - caM.Cannibals[i] - caM.Missionaries[i] <= caM.SizeBoat);
+                    theorem = theorem.Where(t =>
+                                              t.Cannibals[i + 1] >= t.Cannibals[i]
+                                              && t.Missionaries[i + 1] >= t.Missionaries[i]
+                                              && t.Cannibals[i + 1] + t.Missionaries[i + 1] - t.Cannibals[i] - t.Missionaries[i] > 0
+                                              && t.Cannibals[i + 1] + t.Missionaries[i + 1] - t.Cannibals[i] - t.Missionaries[i] <= t.SizeBoat);
 
                 }
 
                 //Never less missionaries than cannibals on any bank
-                theorem = theorem.Where(caM => (caM.Missionaries[i] == 0 || (caM.Missionaries[i] >= caM.Cannibals[i]))
-                                         && (caM.Missionaries[i] == caM.MissionaryAndCannibalCount || ((caM.MissionaryAndCannibalCount - caM.Missionaries[i]) >= (caM.MissionaryAndCannibalCount - caM.Cannibals[i]))));
+                theorem = theorem.Where(t => (t.Missionaries[i] == 0 || (t.Missionaries[i] >= t.Cannibals[i]))
+                                         && (t.Missionaries[i] == t.MissionaryAndCannibalCount || ((t.MissionaryAndCannibalCount - t.Missionaries[i]) >= (t.MissionaryAndCannibalCount - t.Cannibals[i]))));
 
             }
 
             // Goal state
             // When finished, No more people on the starting bank
             theorem = theorem.Where(
-              caM => caM.Length > 0
-                     && caM.Length < maxLength
-                     && caM.Missionaries[caM.Length - 1] == 0
-                     && caM.Cannibals[caM.Length - 1] == 0
+                t => t.Length > 0
+                     && t.Length < maxLength
+                     && t.Missionaries[t.Length - 1] == 0
+                     && t.Cannibals[t.Length - 1] == 0
             );
-
 
             return theorem;
 
