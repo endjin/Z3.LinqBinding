@@ -3,7 +3,6 @@
     using Microsoft.Z3;
 
     using System.Collections;
-    using System.Diagnostics;
     using System.Globalization;
     using System.Linq.Expressions;
     using System.Reflection;
@@ -83,26 +82,22 @@
         /// <returns>Result of solving the theorem; default(T) if the theorem cannot be satisfied.</returns>
         protected T? Solve<T>()
         {
-            // TODO: some debugging around issues with proper disposal of native resources…
-            // using (Context context = _context.CreateContext())
-            Context context = this.context.CreateContext();
+            using Context context = this.context.CreateContext();
+            var environment = GetEnvironment(context, typeof(T));
+
+            //Solver solver = context.MkSimpleSolver();
+            Solver solver = context.MkSolver();
+
+            AssertConstraints<T>(context, solver, environment);
+
+            Status status = solver.Check();
+
+            if (status != Status.SATISFIABLE)
             {
-                var environment = GetEnvironment(context, typeof(T));
-                
-                Solver solver = context.MkSimpleSolver();
-                // Solver solver = context.MkSolver();
-
-                AssertConstraints<T>(context, solver, environment);
-
-                Status status = solver.Check();
-
-                if (status != Status.SATISFIABLE)
-                {
-                    return default;
-                }
-
-                return GetSolution<T>(context, solver.Model, environment);
+                return default;
             }
+
+            return GetSolution<T>(context, solver.Model, environment);
         }
 
         /// <summary>
@@ -110,43 +105,35 @@
         /// </summary>
         /// <typeparam name="T">Theorem environment type.</typeparam>
         /// <returns>Result of solving the theorem; default(T) if the theorem cannot be satisfied.</returns>
-        protected T Optimize<T>(Optimization direction, Expression<Func<T, int>> lambda)
+        protected T Optimize<T, TResult>(Optimization direction, Expression<Func<T, TResult>> lambda)
         {
-            Context context = this.context.CreateContext();
+            using Context context = this.context.CreateContext();
+            var environment = GetEnvironment(context, typeof(T));
+
+            Optimize optimizer = context.MkOptimize();
+
+            AssertConstraints<T>(context, optimizer, environment);
+
+            var expression = ExpressionVisitor.Visit(context, environment, lambda.Body, lambda.Parameters[0]);
+
+            switch (direction)
             {
-                var environment = GetEnvironment(context, typeof(T));
-
-                Optimize optimizer = context.MkOptimize();
-
-                AssertConstraints<T>(context, optimizer, environment);
-
-                var expression = ExpressionVisitor.Visit(context, environment, lambda.Body, lambda.Parameters[0]);
-
-                switch (direction)
-                {
-                    case Optimization.Maximize:
-                        optimizer.MkMaximize(expression);
-                        break;
-                    case Optimization.Minimize:
-                        optimizer.MkMinimize(expression);
-                        break;
-                }
-
-                var sw = Stopwatch.StartNew();
-                
-                Status status = optimizer.Check();
-                
-                sw.Stop();
-
-                this.context.LogWriteLine($"Time to solution: {sw.Elapsed.TotalMilliseconds} ms");
-
-                if (status != Status.SATISFIABLE)
-                {
-                    return default;
-                }
-
-                return GetSolution<T>(context, optimizer.Model, environment);
+                case Optimization.Maximize:
+                    optimizer.MkMaximize(expression);
+                    break;
+                case Optimization.Minimize:
+                    optimizer.MkMinimize(expression);
+                    break;
             }
+
+            Status status = optimizer.Check();
+
+            if (status != Status.SATISFIABLE)
+            {
+                return default;
+            }
+
+            return GetSolution<T>(context, optimizer.Model, environment);
         }
 
         /// <summary>
@@ -620,11 +607,17 @@
 
                     Expr val = model.Eval(subEnv.Expr);
                     if (parameter.PropertyType == typeof(bool))
+                    {
                         field.SetValue(result, val.IsTrue);
+                    }
                     else if (parameter.PropertyType == typeof(int))
+                    {
                         field.SetValue(result, ((IntNum)val).Int);
+                    }
                     else
-                        throw new NotSupportedException("Unsupported parameter type for " + parameter.Name + ".");
+                    { 
+                        throw new NotSupportedException("Unsupported parameter type for " + parameter.Name + "."); 
+                    }
                 }
 
                 return result;
@@ -632,7 +625,7 @@
             else
             {
                 // Straightforward case of having an "onymous type" at hand.
-                object result = Activator.CreateInstance(t);
+                object result = Activator.CreateInstance(t)!;
 
                 foreach (var parameter in environment.Properties.Keys)
                 {
@@ -648,6 +641,7 @@
 
                         prop.SetValue(result, value, null);
                     }
+
                     if (parameter is FieldInfo)
                     {
                         var prop = parameter as FieldInfo;

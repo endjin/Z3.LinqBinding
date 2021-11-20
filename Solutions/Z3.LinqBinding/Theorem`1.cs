@@ -43,9 +43,9 @@
         /// Solves the theorem.
         /// </summary>
         /// <returns>Environment type instance with properties set to theorem-satisfying values.</returns>
-        public T Optimize(Optimization direction, Expression<Func<T, int>> lambda)
+        public T Optimize<TResult>(Optimization direction, Expression<Func<T, TResult>> lambda)
         {
-            return base.Optimize<T>(direction, lambda);
+            return base.Optimize<T, TResult>(direction, lambda);
         }
 
         /// <summary>

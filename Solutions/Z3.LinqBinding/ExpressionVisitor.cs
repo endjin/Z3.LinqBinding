@@ -92,10 +92,46 @@
                 
                 case ExpressionType.Index:
                     return VisitIndex(context, environment, (IndexExpression)expression, param, (ctx, a, b) => ctx.MkSelect((ArrayExpr)a, b));
-                
+
+                case ExpressionType.Convert:
+                    return VisitConvert(context, environment, (UnaryExpression)expression, param);
+
                 default:
                     throw new NotSupportedException("Unsupported expression node type encountered: " + expression.NodeType);
             }
+        }
+
+        private static Expr VisitConvert(Context context, Environment environment, UnaryExpression expression, ParameterExpression param)
+        {
+            if (expression.Type == expression.Operand.Type)
+            {
+                return Visit(context, environment, expression.Operand, param);
+            }
+
+            var inner = Visit(context, environment, expression.Operand, param);
+
+            switch (Type.GetTypeCode(expression.Operand.Type))
+            {
+                case TypeCode.Int16:
+                case TypeCode.Int32:
+                    break;
+            }
+
+            switch (Type.GetTypeCode(expression.Type))
+            {
+                case TypeCode.Double:
+                    return context.MkInt2Real((IntExpr)inner);
+                case TypeCode.Int32:
+                    return context.MkReal2Int((RealExpr)inner);
+                case TypeCode.Char:
+                    if (inner.IsInt)
+                    {
+                        return inner;// context.MkInt(1);// ((IntExpr)inner).int);
+                    }
+                    break;
+            }
+
+            throw new NotImplementedException($"Cast '{expression.Operand} ({expression.Operand.Type})' to {expression.Type}");
         }
 
         /// <summary>
