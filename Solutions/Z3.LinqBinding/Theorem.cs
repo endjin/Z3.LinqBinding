@@ -173,13 +173,13 @@
 
                 if (approach is Solver)
                 {
-                    var solver = (Solver)approach;
+                    var solver = approach as Solver;
                     solver.Assert(expression);
                 }
 
                 if (approach is Optimize)
                 {
-                    var optimize = (Optimize)approach;
+                    var optimize = approach as Optimize;
                     optimize.Assert(expression);
                 }
 
@@ -189,8 +189,6 @@
 
         private static object ConvertZ3Expression(object destinationObject, Context context, Model model, Environment subEnv, MemberInfo parameter)
         {
-            object value = null;
-
             // Normalize types when facing Z3. Theorem variable type mappings allow for strong
             // typing within the theorem, while underlying variable representations are Z3-
             // friendly types.
@@ -214,6 +212,7 @@
                 val = model.Eval(subEnv.Expr);
             }
 
+            object value;
             switch (Type.GetTypeCode(parameterType))
             {
                 case TypeCode.String:
@@ -261,26 +260,26 @@
                         var arrVal = (ArrayExpr)subEnv.Expr;
 
                         var results = new ArrayList();
-                        
+
                         //todo: deal with length in a more robust way
                         int existingLength = 0;
 
-                        if (parameter is PropertyInfo)
+                        if (parameter is PropertyInfo info)
                         {
-                            existingLength = ((ICollection)((PropertyInfo)parameter).GetValue(destinationObject, null)).Count;
+                            existingLength = ((ICollection)info.GetValue(destinationObject, null)).Count;
                         }
 
-                        if (parameter is FieldInfo)
+                        if (parameter is FieldInfo info1)
                         {
                             // TODO: Is this ever used?
-                            existingLength = ((ICollection)((FieldInfo)parameter)).Count;
+                            existingLength = ((ICollection)info1).Count;
                         }
 
                         for (int i = 0; i < existingLength; i++)
                         {
                             var numValExpr = model.Eval(context.MkSelect(arrVal, context.MkInt(i)));
 
-                            object numVal = null;
+                            object numVal;
 
                             switch (Type.GetTypeCode(eltType))
                             {
@@ -337,9 +336,8 @@
             // In that case we expect a constructor with the mapped type to be available.
             if (parameterTypeMapping != null)
             {
-                if (parameter is PropertyInfo)
+                if (parameter is PropertyInfo propertyInfo)
                 {
-                    var propertyInfo = (PropertyInfo)parameter;
                     var ctor = propertyInfo.PropertyType.GetConstructor(new Type[] { parameterType });
 
                     if (ctor == null)
@@ -480,8 +478,7 @@
             }
 
             // Map the environment onto Z3-compatible types.
-            Expr constrExp = null;
-
+            Expr constrExp;
             if (!isArray)
             {
                 switch (Type.GetTypeCode(parameterType))

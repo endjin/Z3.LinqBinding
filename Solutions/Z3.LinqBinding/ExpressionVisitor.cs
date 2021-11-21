@@ -244,7 +244,7 @@
             if (method.Name.StartsWith("get_"))
             {
                 // Assuming it's an indexed property
-                string prop = method.Name.Substring(4);
+                string prop = method.Name[4..];
                 var propinfo = method.DeclaringType?.GetProperty(prop);
                 var target = call.Object;
                 var args = call.Arguments;
