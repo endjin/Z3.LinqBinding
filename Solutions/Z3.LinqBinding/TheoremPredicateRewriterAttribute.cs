@@ -4,6 +4,11 @@
 
     public class TheoremPredicateRewriterAttribute : Attribute
     {
-        public Type RewriterType { get; set; }
+        public TheoremPredicateRewriterAttribute(Type rewriterType)
+        {
+            this.RewriterType = rewriterType;
+        }
+
+        public Type RewriterType { get; }
     }
 }

@@ -15,21 +15,23 @@
         /// <summary>
         /// Z3 configuration object.
         /// </summary>
-        private Dictionary<string, string> config;
+        private readonly Dictionary<string, string> config;
 
         /// <summary>
         /// Creates a new Z3 context for theorem proving.
         /// </summary>
         public Z3Context()
         {
-            this.config = new Dictionary<string, string>();
-            this.config.Add("MODEL", "true");
+            this.config = new Dictionary<string, string>
+            {
+                { "MODEL", "true" }
+            };
         }
 
         /// <summary>
         /// Gets/sets the logger used for diagnostic output.
         /// </summary>
-        public TextWriter Log { get; set; }
+        public TextWriter? Log { get; set; }
 
         /// <summary>
         /// Closes the native resources held by the Z3 theorem prover.

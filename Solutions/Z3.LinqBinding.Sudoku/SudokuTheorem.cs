@@ -56,7 +56,7 @@
         {
             ParameterExpression tParam = Expression.Parameter(typeof(SudokuTable), "t");
 
-            Expression distincts = null;
+            Expression? distincts = null;
 
             for (int distinctIndex = 1; distinctIndex <= 9; distinctIndex++)
             {
@@ -83,7 +83,7 @@
             }
 
             var expr = Expression.Lambda<System.Func<SudokuTable, bool>>(
-                distincts,
+                distincts!,
                 new[] { tParam });
 
             return expr;

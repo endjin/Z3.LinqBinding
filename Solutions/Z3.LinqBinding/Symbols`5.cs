@@ -16,7 +16,7 @@
         /// <remarks>
         /// Used within definition of theorem constraints and to print the theorem prover's result.
         /// </remarks>
-        public T1 X1 { get; private set; }
+        public T1 X1 { get; private set; } = default!;
 
         /// <summary>
         /// Provides access to the second symbol.
@@ -24,7 +24,7 @@
         /// <remarks>
         /// Used within definition of theorem constraints and to print the theorem prover's result.
         /// </remarks>
-        public T2 X2 { get; private set; }
+        public T2 X2 { get; private set; } = default!;
 
         /// <summary>
         /// Provides access to the third symbol.
@@ -32,7 +32,7 @@
         /// <remarks>
         /// Used within definition of theorem constraints and to print the theorem prover's result.
         /// </remarks>
-        public T3 X3 { get; private set; }
+        public T3 X3 { get; private set; } = default!;
 
         /// <summary>
         /// Provides access to the fourth symbol.
@@ -40,7 +40,7 @@
         /// <remarks>
         /// Used within definition of theorem constraints and to print the theorem prover's result.
         /// </remarks>
-        public T4 X4 { get; private set; }
+        public T4 X4 { get; private set; } = default!;
 
         /// <summary>
         /// Provides access to the fifth symbol.
@@ -48,6 +48,6 @@
         /// <remarks>
         /// Used within definition of theorem constraints and to print the theorem prover's result.
         /// </remarks>
-        public T5 X5 { get; private set; }
+        public T5 X5 { get; private set; } = default!;
     }
 }
