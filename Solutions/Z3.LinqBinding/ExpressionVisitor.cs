@@ -86,7 +86,10 @@
 
                 case ExpressionType.Call:
                     return VisitCall(context, environment, (MethodCallExpression)expression, param);
-                
+
+ /*               case ExpressionType.Parameter:
+                    return VisitParameter(context, environment, (ParameterExpression)expression, param);
+                */
                 case ExpressionType.ArrayIndex:
                     return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkSelect((ArrayExpr)a, b));
                 
@@ -95,6 +98,9 @@
 
                 case ExpressionType.Convert:
                     return VisitConvert(context, environment, (UnaryExpression)expression, param);
+
+                case ExpressionType.Power:
+                    return VisitBinary(context, environment, (BinaryExpression)expression, param, (ctx, a, b) => ctx.MkPower((ArithExpr)a, (ArithExpr)b));
 
                 default:
                     throw new NotSupportedException("Unsupported expression node type encountered: " + expression.NodeType);
@@ -366,6 +372,18 @@
 
             return subEnv.Expr;
         }
+
+/*        private static Expr VisitParameter(Context context, Environment environment, ParameterExpression expression, ParameterExpression param)
+        {
+            Expr value;
+
+            if (!environment.Properties.TryGetValue(expression., out value))
+            {
+                throw new NotSupportedException("Unknown parameter encountered: " + expression.Name + ".");
+            }
+
+            return value;
+        }*/
 
         /// <summary>
         /// Visitor method to translate a unary expression.
