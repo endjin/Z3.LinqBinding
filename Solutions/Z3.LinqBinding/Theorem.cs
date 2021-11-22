@@ -187,6 +187,9 @@
 
         private static object ConvertZ3Expression(object destinationObject, Context context, Model model, Environment subEnv, MemberInfo parameter)
         {
+            Expr subEnvExpr = subEnv.Expr ?? throw new ArgumentException(
+                $"nameof(ConvertZ3Expression) requires {nameof(subEnv)}.{nameof(subEnv.Expr)} to be non-null",
+                nameof(subEnv));
             // Normalize types when facing Z3. Theorem variable type mappings allow for strong
             // typing within the theorem, while underlying variable representations are Z3-
             // friendly types.
@@ -204,12 +207,7 @@
                 parameterType = parameterTypeMapping.RegularType;
             }
 
-            Expr? val = null;
-
-            if (subEnv.Expr != null)
-            {
-                val = model.Eval(subEnv.Expr);
-            }
+            Expr val = model.Eval(subEnvExpr);
 
             object value;
             switch (Type.GetTypeCode(parameterType))
@@ -245,7 +243,7 @@
                         Type eltType;
                         if (parameterType.IsArray)
                         {
-                            eltType = parameterType.GetElementType();
+                            eltType = parameterType.GetElementType()!;  // Never returns null if IsArray is true
                         }
                         else
                         {
@@ -265,7 +263,10 @@
 
                         if (parameter is PropertyInfo info)
                         {
-                            existingLength = ((ICollection)info.GetValue(destinationObject, null)).Count;
+                            // The use of "!" here is symptomatic of the fact that this whole approach is
+                            // not robust (as per comment above). If that todo were addressed, it would
+                            // also fix this.
+                            existingLength = ((ICollection)info.GetValue(destinationObject, null)!).Count;
                         }
 
                         if (parameter is FieldInfo info1)
@@ -319,7 +320,7 @@
                         }
                         else
                         {
-                            value = Activator.CreateInstance(parameterType, results.ToArray(eltType));
+                            value = Activator.CreateInstance(parameterType, results.ToArray(eltType))!;
                         }
                     }
                     else

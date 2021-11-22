@@ -341,7 +341,7 @@
                     // We only ever get here if SimplifyLambda is set to false, otherwise partial evaluation does it earlier
                     var target = expression.Value;
                     var hierarchyIdx = 0;
-                    object val = target;
+                    object? val = target;
 
                     while (hierarchyIdx < hierarchy.Count)
                     {
@@ -365,15 +365,21 @@
             // Only members we allow currently are direct accesses to the theorem's variables
             // in the environment type. So we just try to find the mapping from the environment
             // bindings table.
-            Environment? subEnv = environment;
+            Environment subEnv = environment;
 
             foreach (var memberExpression in hierarchy)
             {
-                if (!((memberExpression.Member is PropertyInfo property && subEnv.Properties.TryGetValue(property, out subEnv)) ||
-                      (memberExpression.Member is FieldInfo field && subEnv.Properties.TryGetValue(field, out subEnv))))
+                // Nullability rules require us to give TryGetValue a nullable holder because it
+                // might not succeed. However, C#'s flow analysis is able to determine that if we
+                // make it past this if statement, the result definitely wasn't null, so it is
+                // happy for us to assign it into the never-null subEnv.
+                Environment? nextSubEnv;
+                if (!((memberExpression.Member is PropertyInfo property && subEnv.Properties.TryGetValue(property, out nextSubEnv)) ||
+                      (memberExpression.Member is FieldInfo field && subEnv.Properties.TryGetValue(field, out nextSubEnv))))
                 {
                     throw new NotSupportedException("Unknown parameter encountered: " + member.Member.Name + ".");
                 }
+                subEnv = nextSubEnv;
             }
 
             return subEnv.Expr!;
@@ -407,16 +413,16 @@
             return ctor(context, Visit(context, environment, expression.Operand, param));
         }
 
-        private static object EvalMember(MemberInfo member, object target)
+        private static object? EvalMember(MemberInfo member, object? target)
         {
             switch (member.MemberType)
             {
                 case MemberTypes.Property:
-                    var property = member as PropertyInfo;
-                    return property!.GetValue(target)!;
+                    var property = (PropertyInfo)member;
+                    return property.GetValue(target);
                 case MemberTypes.Field:
-                    var field = member as FieldInfo;
-                    return field!.GetValue(target)!;
+                    var field = (FieldInfo)member;
+                    return field.GetValue(target);
                 default:
                     throw new NotSupportedException($"Unsupported constant {target} .");
             }
