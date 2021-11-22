@@ -7,7 +7,7 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Z3.LinqBinding.Demo", "Z3.L
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Z3.LinqBinding", "Z3.LinqBinding\Z3.LinqBinding.csproj", "{A97C64DA-D2F0-48AF-8F2A-87E18C4BCF52}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Z3.LinqBinding.Examples", "Z3.LinqBinding.Sudoku\Z3.LinqBinding.Examples.csproj", "{81283633-F600-4E15-88FF-ADA309F20F14}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Z3.LinqBinding.Examples", "Z3.LinqBinding.Examples\Z3.LinqBinding.Examples.csproj", "{81283633-F600-4E15-88FF-ADA309F20F14}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
