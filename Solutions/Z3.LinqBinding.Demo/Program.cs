@@ -187,37 +187,37 @@
                 Console.WriteLine(result);
             }
 
+            AllSamples();
+
             Console.ReadKey();
         }
 
-        private static void Samples() 
+        private static void AllSamples() 
         {
-            // All samples
-
             using (var ctx = new Z3Context())
             {
-                // ctx.Log = Console.Out; // see internal logging
+                ctx.Log = Console.Out; // see internal logging
 
-                Print(from t in ctx.NewTheorem(new { x = default(bool) })
+                Solve(from t in ctx.NewTheorem(new { x = default(bool) })
                       where t.x && !t.x
                       select t);
 
-                Print(from t in ctx.NewTheorem(new { x = default(bool), y = default(bool) })
+                Solve(from t in ctx.NewTheorem(new { x = default(bool), y = default(bool) })
                       where t.x ^ t.y
                       select t);
 
-                Print(from t in ctx.NewTheorem(new { x = default(int), y = default(int) })
+                Solve(from t in ctx.NewTheorem(new { x = default(int), y = default(int) })
                       where t.x < t.y + 1
                       where t.x > 2
                       select t);
 
-                Print(from t in ctx.NewTheorem<Symbols<int, int>>()
+                Solve(from t in ctx.NewTheorem<Symbols<int, int>>()
                       where t.X1 < t.X2 + 1
                       where t.X1 > 2
                       where t.X1 != t.X2
                       select t);
 
-                Print(from t in ctx.NewTheorem<Symbols<int, int, int, int, int>>()
+                Solve(from t in ctx.NewTheorem<Symbols<int, int, int, int, int>>()
                       where t.X1 - t.X2 >= 1
                       where t.X1 - t.X2 <= 3
                       where t.X1 == (2 * t.X3) + t.X5
@@ -225,11 +225,11 @@
                       where t.X2 == 6 * t.X4
                       select t);
 
-                Print(from t in ctx.NewTheorem<Symbols<int, int>>()
+                Solve(from t in ctx.NewTheorem<Symbols<int, int>>()
                       where Z3Methods.Distinct(t.X1, t.X2)
                       select t);
 
-                Print(from t in SudokuTheorem.Create(ctx)
+                Solve(from t in SudokuTheorem.Create(ctx)
                       where t.Cell13 == 2 && t.Cell16 == 1 && t.Cell18 == 6
                       where t.Cell23 == 7 && t.Cell26 == 4
                       where t.Cell31 == 5 && t.Cell37 == 9
@@ -243,7 +243,7 @@
             }
         }
 
-        private static void Print<T>(Theorem<T> t) where T : class
+        private static void Solve<T>(Theorem<T> t) where T : class
         {
             Console.WriteLine(t);
             var res = t.Solve();
