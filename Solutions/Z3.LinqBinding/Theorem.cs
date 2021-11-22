@@ -130,7 +130,7 @@
 
             if (status != Status.SATISFIABLE)
             {
-                return default;
+                return default!;
             }
 
             return GetSolution<T>(context, optimizer.Model, environment);
@@ -171,15 +171,13 @@
             {
                 BoolExpr expression = (BoolExpr)ExpressionVisitor.Visit(context, environment, constraint.Body, constraint.Parameters[0]);
 
-                if (approach is Solver)
+                if (approach is Solver solver)
                 {
-                    var solver = approach as Solver;
                     solver.Assert(expression);
                 }
 
-                if (approach is Optimize)
+                if (approach is Optimize optimize)
                 {
-                    var optimize = approach as Optimize;
                     optimize.Assert(expression);
                 }
 
@@ -199,14 +197,15 @@
                 _ => throw new NotSupportedException(),
             };
 
-            var parameterTypeMapping = (TheoremVariableTypeMappingAttribute)parameterType.GetCustomAttributes(typeof(TheoremVariableTypeMappingAttribute), false).SingleOrDefault();
+            TheoremVariableTypeMappingAttribute? parameterTypeMapping = parameterType.GetCustomAttributes<TheoremVariableTypeMappingAttribute>(false).SingleOrDefault();
 
             if (parameterTypeMapping != null)
             {
                 parameterType = parameterTypeMapping.RegularType;
             }
 
-            Expr val = null;
+            Expr? val = null;
+
             if (subEnv.Expr != null)
             {
                 val = model.Eval(subEnv.Expr);
@@ -345,11 +344,11 @@
                         throw new InvalidOperationException("Could not construct an instance of the mapped type " + propertyInfo.PropertyType.Name + ". No public constructor with parameter type " + parameterType + " found.");
                     }
 
-                    value = ctor.Invoke(new object[] { value });
+                    value = ctor.Invoke(new object[] { value! });
                 }
             }
 
-            return value;
+            return value!;
         }
 
         private Environment GetEnvironment(Context context, Type targetType)
@@ -363,7 +362,7 @@
 
             if (targetType.IsArray || (targetType.IsGenericType && typeof(IEnumerable).IsAssignableFrom(targetType.GetGenericTypeDefinition())))
             {
-                Type elType;
+                Type? elType;
 
                 if (targetType.IsArray)
                 {
@@ -414,19 +413,22 @@
                         break;
                     case TypeCode.Object:
                         toReturn.IsArray = true;
-                        foreach (PropertyInfo parameter in elType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
+
+                        foreach (PropertyInfo parameter in elType!.GetProperties(BindingFlags.Public | BindingFlags.Instance))
                         {
                             var newPrefix = parameter.Name;
+                            
                             if (!string.IsNullOrEmpty(prefix))
                             {
                                 newPrefix = $"{prefix}_{newPrefix}";
                             }
+                            
                             toReturn.Properties[parameter] = GetEnvironment(context, parameter, newPrefix, true);
                         }
+
                         return toReturn;
                     default:
                         throw new NotSupportedException($"Unsupported member type {targetType.FullName}");
-
                 }
 
                 toReturn.Expr = context.MkArrayConst(prefix, arrDomain, arrRange);
@@ -599,6 +601,11 @@
                     // Mapping from property to field.
                     var field = fields.SingleOrDefault(f => f.Name.StartsWith($"<{parameter.Name}>"));
 
+                    if (field == null) 
+                    {
+                        continue;
+                    }
+
                     // Evaluation of the values though the handle in the environment bindings.
                     var subEnv = environment.Properties[parameter];
 
@@ -629,6 +636,12 @@
                     if (parameter is PropertyInfo)
                     {
                         var prop = parameter as PropertyInfo;
+
+                        if (prop == null) 
+                        {
+                            continue;
+                        }
+
                         // Evaluation of the values though the handle in the environment bindings.
                         object value;
 
@@ -642,6 +655,12 @@
                     if (parameter is FieldInfo)
                     {
                         var prop = parameter as FieldInfo;
+
+                        if (prop == null)
+                        {
+                            continue;
+                        }
+
                         // Evaluation of the values though the handle in the environment bindings.
                         object value;
 

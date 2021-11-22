@@ -6,7 +6,7 @@
 
     public class Environment
     {
-        public Expr Expr { get; set; }
+        public Expr? Expr { get; set; }
 
         public Dictionary<MemberInfo, Environment> Properties { get; set; } = new Dictionary<MemberInfo, Environment>();
 

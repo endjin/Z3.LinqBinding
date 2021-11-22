@@ -200,7 +200,7 @@
             {
                 // We know the signature of the Distinct method call. Its argument is a params
                 // array, hence we expect a NewArrayExpression.
-                IEnumerable distinctExps = null;
+                IEnumerable? distinctExps = null;
 
                 var itemsExpression = call.Arguments[0];
                 if (itemsExpression is MethodCallExpression mExp)
@@ -244,6 +244,7 @@
 
                 IEnumerable<Expr> args = from Expression arg in distinctExps 
                                          select Visit(context, environment, arg, param);
+
                 return context.MkDistinct(args.ToArray());
             }
 
@@ -253,10 +254,14 @@
                 string prop = method.Name[4..];
                 var propinfo = method.DeclaringType?.GetProperty(prop);
                 var target = call.Object;
-                var args = call.Arguments;
-                var indexer = Expression.MakeIndex(target, propinfo, args);
 
-                return Visit(context, environment, indexer, param);
+                if (target != null)
+                {
+                    var args = call.Arguments;
+                    var indexer = Expression.MakeIndex(target, propinfo, args);
+
+                    return Visit(context, environment, indexer, param);
+                }
             }
 
             throw new NotSupportedException("Unknown method call:" + method.ToString());
@@ -270,7 +275,7 @@
         /// <returns>Z3 expression handle.</returns>
         private static Expr VisitConstant(Context context, ConstantExpression constant)
         {
-            return VisitConstantValue(context, constant.Value);
+            return VisitConstantValue(context, constant.Value!);
         }
 
         private static Expr VisitConstantValue(Context context, object val)
@@ -299,8 +304,7 @@
         private static Expr VisitIndex(Context context, Environment environment, IndexExpression expression, ParameterExpression param, Func<Context, Expr, Expr[], Expr> ctor)
         {
             var args = expression.Arguments.Select(argExp => Visit(context, environment, argExp, param)).ToArray();
-            //return ctor(context, Visit(context, environment, expression.Object, param), Visit(context, environment, expression.Arguments[0], param));
-            return ctor(context, Visit(context, environment, expression.Object, param), args);
+            return ctor(context, Visit(context, environment, expression.Object!, param), args);
         }
 
         /// <summary>
@@ -341,13 +345,15 @@
 
                     while (hierarchyIdx < hierarchy.Count)
                     {
-                        val = EvalMember(hierarchy[hierarchyIdx].Member, val);
+                        val = EvalMember(hierarchy[hierarchyIdx].Member, val!);
                         hierarchyIdx++;
                     }
+
                     if (val != null)
                     {
                         return VisitConstantValue(context, val);
                     }
+
                     throw new NotSupportedException($"Could not reduce expression {topMember.Expression}");
                 }
                 else
@@ -359,7 +365,7 @@
             // Only members we allow currently are direct accesses to the theorem's variables
             // in the environment type. So we just try to find the mapping from the environment
             // bindings table.
-            Environment subEnv = environment;
+            Environment? subEnv = environment;
 
             foreach (var memberExpression in hierarchy)
             {
@@ -370,10 +376,11 @@
                 }
             }
 
-            return subEnv.Expr;
+            return subEnv.Expr!;
         }
 
-/*        private static Expr VisitParameter(Context context, Environment environment, ParameterExpression expression, ParameterExpression param)
+/*      
+        private static Expr VisitParameter(Context context, Environment environment, ParameterExpression expression, ParameterExpression param)
         {
             Expr value;
 
@@ -383,7 +390,8 @@
             }
 
             return value;
-        }*/
+        }
+*/
 
         /// <summary>
         /// Visitor method to translate a unary expression.
@@ -404,11 +412,12 @@
             switch (member.MemberType)
             {
                 case MemberTypes.Property:
-                    return ((PropertyInfo)member).GetValue(target);
+                    var property = member as PropertyInfo;
+                    return property!.GetValue(target)!;
                 case MemberTypes.Field:
-                    return ((FieldInfo)member).GetValue(target);
+                    var field = member as FieldInfo;
+                    return field!.GetValue(target)!;
                 default:
-                    //val = target = null;
                     throw new NotSupportedException($"Unsupported constant {target} .");
             }
         }
