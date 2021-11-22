@@ -9,6 +9,7 @@
 
 using System;
 using System.Diagnostics;
+using Microsoft.Z3;
 using Z3.LinqBinding;
 using Z3.LinqBinding.Sudoku;
 
@@ -49,42 +50,34 @@ using (var ctx = new Z3Context())
     Console.WriteLine(result);
 }
 
-#!csharp
+#!markdown
 
-SolverContext context = SolverContext.GetContext();
-context.ClearModel();
-Model model = context.CreateModel();
+Oil Barrel Problem:
 
-Decision sa = new Decision(Domain.RealRange(0, 9000), "SA");
-Decision vz = new Decision(Domain.RealRange(0, 6000), "VZ");
-model.AddDecisions(sa, vz);
+In this example we have two refineries (located in Saudi Arabia and Venzuela) that produce three products: gasoline, jet fuel, and lubricant. 
 
-model.AddGoal("goal", GoalKind.Minimize, 20 * sa + 15 * vz);
+The goal is to minimize production costs, which depend on location. There is demand for each product which must be met. Finally, each production site has a limited production capacity.
 
-model.AddConstraint("demand1", 0.3 * sa + 0.4 * vz >= 1900);
-model.AddConstraint("demand2", 0.4 * sa + 0.2 * vz >= 1500);
-model.AddConstraint("demand3", 0.2 * sa + 0.3 * vz >= 500);
-
-Solution solution = context.Solve(new SimplexDirective());
-Report report = solution.GetReport();
-Console.WriteLine(report);
+| Source     | Saudi Arabia Regining | Venezuela Refining |
+| Cost       | $20 / barrel          | $15 / barrel       |
+| Refining % | 30% gasolene          | 40% gasolene       |
+|            | 40% jet fuel          | 20% jet fuel       |
+|            | 20% lubricant         | 30% lubricant      |
+|            | 10% waste             | 10% waste          |
 
 #!csharp
 
 using (var ctx = new Z3Context())
 {
-    // ctx.Log = Console.Out;
-
     var theorem = from t in ctx.NewTheorem<(double vz, double sa)>()
                     where 0.3 * t.sa + 0.4 * t.vz >= 1900
                     where 0.4 * t.sa + 0.2 * t.vz >= 1500
                     where 0.2 * t.sa + 0.3 * t.vz >= 500
                     where 0 <= t.sa && t.sa <= 9000
                     where 0 <= t.vz && t.vz <= 6000
-                    //orderby 20 * t.sa + 15 * t.vz // we need to turn order by into goals
                     select t;
 
-    var result = theorem.Solve();
+    var result = theorem.Optimize(Optimization.Minimize, t => (20.0 * t.sa) + (15.0 * t.vz));
 
     Console.WriteLine(result);
 }
@@ -440,3 +433,8 @@ Solution solution = context.Solve(new SimplexDirective());
 Report report = solution.GetReport();
 
 Console.WriteLine(report);
+
+#!markdown
+
+http://lonelypad.blogspot.com/2014/08/f-and-linear-programming-introduction.html
+https://www.tautvidas.com/blog/2019/02/solving-a-puzzle-game-with-z3-theorem-prover/

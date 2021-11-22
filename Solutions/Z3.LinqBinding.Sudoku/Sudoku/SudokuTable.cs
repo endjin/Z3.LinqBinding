@@ -1,4 +1,4 @@
-﻿namespace Z3.LinqBinding.Sudoku
+﻿namespace Z3.LinqBinding.Examples.Sudoku
 {
     using System.Text;
 

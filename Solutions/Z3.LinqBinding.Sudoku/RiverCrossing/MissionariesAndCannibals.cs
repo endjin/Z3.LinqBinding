@@ -1,8 +1,6 @@
-﻿namespace Z3.LinqBindingDemo
+﻿namespace Z3.LinqBinding.Examples.RiverCrossing
 {
     using System.Text;
-
-    using Z3.LinqBinding;
 
     /// <summary>
     /// This class solves the famous <see href="https://en.wikipedia.org/wiki/Missionaries_and_cannibals_problem">Missionaries and cannibals problem</see>

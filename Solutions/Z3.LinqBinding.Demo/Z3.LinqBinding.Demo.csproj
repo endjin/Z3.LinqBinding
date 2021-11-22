@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Z3.LinqBinding.Sudoku\Z3.LinqBinding.Sudoku.csproj" />
+    <ProjectReference Include="..\Z3.LinqBinding.Sudoku\Z3.LinqBinding.Examples.csproj" />
     <ProjectReference Include="..\Z3.LinqBinding\Z3.LinqBinding.csproj" />
   </ItemGroup>
 

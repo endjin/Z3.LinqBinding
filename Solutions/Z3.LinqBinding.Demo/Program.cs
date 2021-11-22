@@ -4,20 +4,18 @@
     using System.Diagnostics;
 
     using Z3.LinqBinding;
-    using Z3.LinqBinding.Sudoku;
+    using Z3.LinqBinding.Examples;
+    using Z3.LinqBinding.Examples.RiverCrossing;
+    using Z3.LinqBinding.Examples.Sudoku;
 
     public static class Program
     {
-        private static Stopwatch stopwatch = Stopwatch.StartNew();
-
         private static void Main(string[] args)
         {
             Console.WriteLine("==== Missionaries & Cannibals using Solve() ====");
 
             using (var ctx = new Z3Context())
             {
-                // ctx.Log = Console.Out; // see internal logging
-
                 var theorem =
                     from t in  MissionariesAndCannibals.Create(ctx, 50)
                     where t.MissionaryAndCannibalCount == 3
@@ -48,8 +46,6 @@
 
             using (var ctx = new Z3Context())
             {
-                // ctx.Log = Console.Out; // see internal logging
-
                 var theorem = from t in ctx.NewTheorem(new { x = default(bool), y = default(bool) })
                               where t.x ^ t.y
                               select t;
@@ -63,8 +59,6 @@
 
             using (var ctx = new Z3Context())
             {
-                // ctx.Log = Console.Out;
-
                 var theorem = from t in ctx.NewTheorem<(bool x, bool y)>()
                               where t.x ^ t.y
                               select t;
@@ -75,17 +69,16 @@
                 ctx.Dispose();
             }
 
-            Console.WriteLine("==== t.x ^ t.y using Custom Theorem ====");
+            Console.WriteLine("==== t.x ^ t.y using Custom Theorem using Record type ====");
 
             using (var ctx = new Z3Context())
             {
-                // ctx.Log = Console.Out; // see internal logging
-
-                var theorem = from t in ctx.NewTheorem(new RTheorem<bool, bool>())
+                var theorem = from t in ctx.NewTheorem(new RecordTheorem<bool, bool>())
                               where t.X ^ t.Y
                               select t;
 
                 var result = theorem.Solve();
+                
                 Console.WriteLine(result);
             }
 
@@ -93,8 +86,6 @@
             
             using (var ctx = new Z3Context())
             {
-                // ctx.Log = Console.Out;
-
                 var theorem = from t in ctx.NewTheorem<Symbols<int, int, int>>()
                               where t.X1 - t.X2 >= 1
                               where t.X1 - t.X2 <= 3
@@ -110,8 +101,6 @@
             
             using (var ctx = new Z3Context())
             {
-                // ctx.Log = Console.Out;
-
                 var theorem = from t in ctx.NewTheorem<(int x, int y, int z)>()
                               where t.x - t.y >= 1
                               where t.x - t.y <= 3
@@ -127,8 +116,6 @@
 
             using (var ctx = new Z3Context())
             {
-                // ctx.Log = Console.Out; // see internal logging
-
                 var theorem = from t in ctx.NewTheorem<Symbols<int, int>>()
                               where t.X1 < t.X2 + 1
                               where t.X1 > 2
@@ -179,6 +166,7 @@
                               select t;
 
                 var result = theorem.Solve();
+
                 Console.WriteLine(result);
             }
 
@@ -194,17 +182,16 @@
                               where 0 <= t.vz && t.vz <= 6000
                               select t;
 
-                var result = theorem.Solve();
-
-                // orderby 20 * t.sa + 15 * t.vz // we need to turn order by into goals
-                var result2 = theorem.Optimize(Optimization.Minimize, t => 20.0 * t.sa + 15.0 * t.vz);
+                var result = theorem.Optimize(Optimization.Minimize, t => 20.0 * t.sa + 15.0 * t.vz);
 
                 Console.WriteLine(result);
-                Console.WriteLine(result2);
             }
 
-            /* 
-            
+            Console.ReadKey();
+        }
+
+        private static void Samples() 
+        {
             // All samples
 
             using (var ctx = new Z3Context())
@@ -253,9 +240,7 @@
                       where t.Cell84 == 8 && t.Cell87 == 3
                       where t.Cell92 == 4 && t.Cell94 == 9 && t.Cell97 == 2
                       select t);
-            }*/
-
-            Console.ReadKey();
+            }
         }
 
         private static void Print<T>(Theorem<T> t) where T : class
